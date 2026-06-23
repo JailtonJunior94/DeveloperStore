@@ -284,6 +284,96 @@ Exemplo:
 - `Docker Compose v2`
 - `GNU Make`
 
+### Modos de execução
+
+| Modo | Quando usar | Comando |
+|---|---|---|
+| **Stack completa no Docker** | Demo, CI, revisão técnica | `make docker-up-build` |
+| **Somente infra + debug VS Code** | Desenvolvimento ativo, breakpoints | `make infra-up` → F5 no VS Code |
+
+---
+
+### Modo 1 — Stack completa no Docker
+
+Sobe API + PostgreSQL em containers. Migrations aplicadas automaticamente no startup.
+
+```bash
+make docker-up-build
+```
+
+Acesse:
+
+- API: `http://localhost:8080`
+- Swagger: `http://localhost:8080/swagger`
+- Health: `http://localhost:8080/health`
+
+Para acompanhar logs:
+
+```bash
+make docker-logs
+```
+
+Para derrubar:
+
+```bash
+make docker-down
+```
+
+Para derrubar e remover o volume do banco:
+
+```bash
+make docker-down-volumes
+```
+
+---
+
+### Modo 2 — Somente infra + debug no VS Code
+
+Sobe apenas o PostgreSQL em container e roda a API localmente via debugger.
+
+**Passo 1:** Suba somente a infra.
+
+```bash
+make infra-up
+```
+
+**Passo 2:** Abra o projeto no VS Code e pressione `F5`.
+
+O launch config `DeveloperStore.WebApi` (`.vscode/launch.json`) executa automaticamente:
+
+1. `infra:up` — garante que o PostgreSQL está no ar
+2. `build` — compila a solução
+3. Lança a API em modo debug conectada a `localhost:5432`
+
+A connection string já está pré-configurada no launch config:
+
+```
+Host=localhost;Port=5432;Database=developerstore;Username=developerstore_app;Password=developerstore_local_only
+```
+
+**Alternativa com hot reload** (`watch`):
+
+Selecione a config `DeveloperStore.WebApi (watch)` no picker do VS Code. Ela sobe a infra e lança a API com recompilação automática a cada mudança, sem rebuildar manualmente.
+
+**Tasks disponíveis no VS Code** (via `Terminal > Run Task...`):
+
+| Task | Ação |
+|---|---|
+| `infra:up` | Sobe PostgreSQL |
+| `infra:down` | Derruba tudo |
+| `infra:logs` | Acompanha logs do banco |
+| `docker:up` | Sobe stack completa |
+| `docker:down` | Derruba stack completa |
+| `build` | Compila a solução |
+| `migrate` | Aplica migrations |
+| `test:unit` | Testes unitários |
+| `test:integration` | Testes de integração |
+| `test:functional` | Testes funcionais |
+| `test:bdd` | Suíte BDD com Testcontainers |
+| `test:postgres` | Validação em PostgreSQL real |
+
+---
+
 ### Como usar o Makefile em macOS, Linux e Windows
 
 O `Makefile` é a forma principal de operar o projeto. Ele centraliza os comandos úteis de build, execução, testes, Docker e migrations.
