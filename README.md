@@ -1,5 +1,13 @@
 # DeveloperStore Sales API
 
+[![CI](https://github.com/JailtonJunior94/DeveloperStore/actions/workflows/ci.yml/badge.svg)](https://github.com/JailtonJunior94/DeveloperStore/actions/workflows/ci.yml)
+![.NET Version](https://img.shields.io/badge/.NET-10.0-blue?style=flat-square&logo=dotnet)
+![C# Version](https://img.shields.io/badge/C%23-14-green?style=flat-square&logo=csharp)
+![Architecture](https://img.shields.io/badge/Architecture-Clean--DDD-orange?style=flat-square)
+![Database](https://img.shields.io/badge/Database-PostgreSQL-blue?style=flat-square&logo=postgresql)
+![Docker](https://img.shields.io/badge/Docker-Supported-blue?style=flat-square&logo=docker)
+![License](https://img.shields.io/badge/License-MIT-lightgrey?style=flat-square)
+
 API de vendas construída para o teste técnico da DeveloperStore, com foco em robustez, DDD, validação semântica, contratos HTTP consistentes e modelagem inspirada em `Domain Modeling Made Functional`.
 
 Repositório público: `https://github.com/JailtonJunior94/DeveloperStore`
@@ -82,6 +90,47 @@ Este projeto foi desenhado para demonstrar:
 - `Serilog`
 
 ## Arquitetura
+
+### Visual Architecture & Dependency Flow
+
+```mermaid
+graph TD
+    %% Layers
+    WebApi["DeveloperStore.WebApi (Presentation)"]
+    Application["DeveloperStore.Application (Use Cases)"]
+    Domain["DeveloperStore.Domain (Core Business Rules)"]
+    ORM["DeveloperStore.ORM (Infrastructure / Persistence)"]
+    IoC["DeveloperStore.IoC (Dependency Injection Composition)"]
+    Common["DeveloperStore.Common (Cross-Cutting Concerns)"]
+
+    %% Dependency Flow
+    WebApi --> Application
+    Application --> Domain
+    ORM --> Domain
+    IoC --> WebApi
+    IoC --> Application
+    IoC --> ORM
+    IoC --> Domain
+    Common -.-> WebApi
+    Common -.-> Application
+    Common -.-> ORM
+    Common -.-> Domain
+
+    %% Styling
+    classDef core fill:#a5d6a7,stroke:#2e7d32,stroke-width:2px;
+    classDef app fill:#90caf9,stroke:#1565c0,stroke-width:2px;
+    classDef infra fill:#ffe082,stroke:#ff8f00,stroke-width:2px;
+    classDef presentation fill:#ef9a9a,stroke:#c62828,stroke-width:2px;
+    classDef cross fill:#b0bec5,stroke:#37474f,stroke-width:1px,stroke-dasharray: 5 5;
+
+    class Domain core;
+    class Application app;
+    class ORM,IoC infra;
+    class WebApi presentation;
+    class Common cross;
+```
+
+### Directory Tree Structure
 
 ```text
 .

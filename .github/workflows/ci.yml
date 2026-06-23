@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  build-and-test:
+    name: Build & Test (.NET 10)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: developerstore_test
+          POSTGRES_USER: developerstore_test
+          POSTGRES_PASSWORD: developerstore_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore DeveloperStore.slnx
+
+    - name: Check code formatting
+      run: dotnet format DeveloperStore.slnx --verify-no-changes
+
+    - name: Build Solution
+      run: dotnet build DeveloperStore.slnx --no-restore --configuration Release
+
+    - name: Run Unit Tests
+      run: dotnet test tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj --no-restore --configuration Release --verbosity normal
+
+    - name: Run Integration Tests
+      run: dotnet test tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj --no-restore --configuration Release --verbosity normal
+
+    - name: Run Functional Tests
+      run: dotnet test tests/DeveloperStore.Functional/DeveloperStore.Functional.csproj --no-restore --configuration Release --verbosity normal
+
+    - name: Run PostgreSQL Integration Tests
+      env:
+        POSTGRES_TEST_CONNECTION_STRING: Host=localhost;Port=5432;Database=developerstore_test;Username=developerstore_test;Password=developerstore_test
+      run: dotnet test tests/DeveloperStore.Postgres/DeveloperStore.Postgres.csproj --no-restore --configuration Release --verbosity normal
