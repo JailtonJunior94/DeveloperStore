@@ -128,6 +128,8 @@ As seguintes regras sao obrigatorias para endpoints e casos de uso:
 13. `ApiController`, model binding, validators e middleware devem convergir para um unico contrato de erro observavel pelo cliente.
 14. Qualquer mudanca em shape de erro, codigos, status HTTP ou semantica de query string exige teste funcional.
 15. Falha de validacao na borda nao deve chegar ao repositório nem ao aggregate.
+16. Testes de contrato de erro devem inspecionar o payload JSON bruto (ou deserializar com `PropertyNamingPolicy` fixa em camelCase) para garantir que `type`, `error` e `detail` sejam retornados em camelCase. Deserializacao case-insensitive e testes que apenas leem propriedades .NET mascaram inconsistencias de casing no contrato HTTP.
+17. Serializacao ad-hoc com `JsonSerializer.Serialize` sem `JsonSerializerOptions` e proibida em middleware, filters ou qualquer ponto que produza o payload de erro da API. O contrato de erro deve usar as mesmas opcoes de serializacao da aplicacao (camelCase por padrao).
 
 ### Robustez e Production-Ready
 
@@ -150,7 +152,11 @@ Para novas demandas, assumir como nao negociavel:
 15. **Filtros sobre owned entity properties nao traduzem via EF.Functions.Like, Contains, StartsWith, EndsWith no Npgsql**: qualquer metodo de string sobre `sale.Customer.Description` ou `sale.Branch.Description` em predicado LINQ falha com `could not be translated`. A estrategia correta e dois-fases: fase SQL para filtros em colunas proprias da entidade raiz (status, data, saleNumber), fase in-memory para filtros em propriedades de owned entities. Nao tentar resolver via EF.Property aninhado.
 16. **WHERE com `saleIds.Contains(sale.Id)` traduz corretamente; `expression.OrElse` com `.Id.Value == guid` nao traduz**: ao filtrar entidades por lista de IDs, usar `.Where(s => ids.Contains(s.Id))` onde `ids` e uma lista de tipos VO. Evitar construcao manual de Expression tree com `Expression.Constant(false)` como base de OrElse.
 17. **Codigo morto e proibido**: exceptions, metodos privados, constantes e helpers sem nenhum chamador devem ser removidos imediatamente. A presenca de codigo nao referenciado e sinal de incompleto ou refactor abandonado.
-18. **Proibido comentarios em codigo C#**: nenhum comentario de codigo, inline ou de bloco, deve ser adicionado a arquivos `.cs`. Se o motivo de uma decisao precisar ser registrado, o lugar e o AGENTS.md, nao o codigo.
+18. **Proibido comentarios em codigo C#**: nenhum comentario de codigo, inline ou de bloco, deve ser adicionado a arquivos `.cs`. A proibicao abrange codigo de producao, testes unitarios, step definitions, fixtures, helpers e qualquer arquivo `.cs` versionado. Se o motivo de uma decisao precisar ser registrado, o lugar e o AGENTS.md ou um ADR, nao o codigo.
+19. **Listagens e filtros exigem prova no provider relacional**: listagens, filtros, ordenacao, paginacao, `Include`, `AutoInclude`, `Contains`, `EF.Functions.Like` e queries sobre owned types so sao consideradas validadas quando ha caso de teste executado contra o provider relacional real do projeto (PostgreSQL). Testes com EF InMemory, stubs ou mocks nunca sao evidencia suficiente para esses cenarios.
+20. **CI/CD deve executar BDD/PostgreSQL real como gate bloqueante**: o pipeline de merge para `main` deve incluir a suite `DeveloperStore.BDD` (ou testes de integracao equivalentes contra PostgreSQL real). Suites rapidas em memoria (Unit, Integration, Functional) nao sao gate suficiente para funcionalidades sensiveis a persistencia.
+21. **Excecoes de dominio sao transporte-agnosticas**: e proibido referenciar `System.Net.HttpStatusCode`, `Microsoft.AspNetCore.*` ou qualquer detalhe de transporte no projeto `Domain`. O mapeamento de excecoes de dominio para status HTTP deve residir em `WebApi` ou `Application`.
+22. **Observabilidade de falhas 500**: falhas que resultem em HTTP 500 devem produzir log estruturado com exception, traceId e contexto suficiente para diagnostico. Silencio em log para requisicoes que retornam 500 e considerado bug de observabilidade.
 
 ## Modo de trabalho
 
@@ -177,21 +183,21 @@ Para novas demandas, assumir como nao negociavel:
 11. Para listagens, preferir `read models/projections` especificos quando isso reduzir fragilidade de traducao sem empobrecer o dominio.
 12. Nao acoplar consultas de listagem ao aggregate completo quando uma projecao controlada for suficiente para paginação, ordenação ou filtro.
 13. Quando filtros por owned types, value converters ou members calculados degradarem traducao SQL, isolar o problema em estrategia explicita e testada.
+14. **Filtros e paginacao de repositorio nao expoem primitivos crus**: `string?`, `int`, `DateTimeOffset?`, `decimal?` e similares nao devem representar conceitos de negocio (`SaleNumber`, `SoldAt`, `Quantity`, etc.) em filtros de repositorio sem justificativa explicita. Se o primitivo for inevitavel por restricao de framework, documentar a decisao.
+15. **Listagens nao carregam o universo completo para memoria**: e proibido trazer todo o conjunto de registros para a aplicacao para depois filtrar, ordenar ou paginar. Estrategias hibridas (fase SQL + fase in-memory) devem ser limitadas a subconjuntos controlados, justificadas por limitacao do provider e acompanhadas de analise de risco de performance/volume quando aplicavel.
 
 ## Regras Especificas de Persistencia
 
 1. Toda query de repositório deve ser pensada para o provider real, nao apenas para `InMemory`.
 2. `Include`, `AutoInclude`, filtros em owned types, `Contains`, ordenacao e paginação devem ser tratados como pontos de risco de traducao.
-3. Antes de afirmar que uma query esta correta, validar se ela:
-   - compila
-   - traduz em SQL no provider relacional
-   - retorna os dados esperados
+3. Antes de afirmar que uma query traduz corretamente no provider, validar que ela: (a) compila, (b) gera SQL valido no provider (pode ser verificado via `ToQueryString()` ou execucao real), (c) retorna os dados esperados.
 4. Quando necessario, dividir consultas em duas fases:
    - fase relacional para reduzir universo
    - fase em memoria apenas sobre subconjunto controlado e justificado
 5. Toda estrategia hibrida deve ser deterministica, testada e proporcional ao risco.
 6. Nao usar workaround de provider sem registrar o motivo em comentario curto quando o codigo nao for autoexplicativo.
 7. Migrations e snapshot do EF devem acompanhar mudancas de modelo persistido no mesmo commit.
+8. **Cuidado com metodos de string sobre projecoes e owned entities no Npgsql**: nao usar `EF.Functions.Like`, `Contains`, `StartsWith`, `EndsWith` sobre propriedades de projecoes EF ou owned entities sem validar a traducao no provider Npgsql. Quando houver duvida, preferir fase relacional sobre colunas da entidade raiz e, se necessario, fase in-memory sobre subconjunto controlado.
 
 ## Regras de Documentacao e Escopo
 
@@ -219,6 +225,9 @@ Para novas demandas, assumir como nao negociavel:
 8. **Nao inferir que eventos de dominio foram entregues** apenas porque o handler retornou sem erro; verificar se `DequeueDomainEvents` e chamado **apos** `SaveChangesAsync` e nao antes.
 9. **Nao inferir cobertura de regra de negocio por ter ao menos um caso feliz**: limites de tier (ex: 3, 4, 9, 10, 20, 21 para descontos por quantidade) exigem casos de teste explicitos para cada fronteira, nao apenas um valor por tier.
 10. **Nao tratar warning de codigo nao referenciado como ruido**: codigo sem chamadores e sintoma de feature incompleta, refactor abandonado ou excecao de dominio sem fio. Investigar antes de ignorar.
+11. **Nao declarar funcionalidade de listagem/filtro pronta apenas com testes rapidos**: `DeveloperStore.Unit` e `DeveloperStore.Functional` verdes nao provam que listagens, filtros, ordenacao ou paginacao funcionam em PostgreSQL. A prova canonica e `DeveloperStore.BDD` ou `DeveloperStore.Postgres` verde.
+12. **Nao tratar `.doc` como especificacao viva quando contradiz o codigo/README atual**: se `.doc` refletir template legado (ex: stack, frameworks, escopo fora do repositorio), o codigo/README atual prevalece para o escopo implementado e a divergencia deve ser declarada explicitamente.
+13. **Nao ignorar sinais de governanca quebrada**: chamadas de DI duplicadas (ex.: `AddControllers`, `AddHealthChecks` registrados em mais de um lugar), comentarios em `.cs` e codigo nao referenciado sao sintomas de incompletude e devem ser tratados, nao mascarados como estilo ou ruido.
 
 ## Regras por Linguagem
 
@@ -284,6 +293,8 @@ Adicionalmente neste projeto:
 7. Se alterar health checks, configuracao ou bootstrap, validar readiness/liveness e politica de migracao explicitamente.
 8. Se alterar `README.md` ou contrato de uso, validar se a documentacao continua consistente com endpoints, defaults e exemplos reais.
 9. Ao concluir, preferir reportar tambem riscos residuais conhecidos, especialmente quando houver divergencia nao resolvida com `.doc`.
+10. Antes de concluir alteracao em listagem, filtro, paginacao, ordenacao ou contrato de erro, executar `make verify-full` (ou equivalente) e garantir que `DeveloperStore.BDD` e `DeveloperStore.Postgres` estejam verdes. Se nao for possivel executa-los, registrar o impedimento e nao declarar a funcionalidade pronta.
+11. Se alterar middleware, filter ou shape de erro, validar o payload JSON bruto para erros 500, 422 e 404, garantindo camelCase e consistencia entre todos os caminhos de erro da API.
 
 ## Restricoes
 

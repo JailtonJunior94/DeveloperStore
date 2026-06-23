@@ -42,7 +42,7 @@ public static class SaleMappings
             sale.Items.Count);
     }
 
-    public static PagedResponse<SaleSummaryDto> ToResponse(this PagedResult<Sale> pagedResult)
+    public static PagedResponse<SaleSummaryDto> ToResponse(this PagedResult<SaleSummary> pagedResult)
     {
         return new PagedResponse<SaleSummaryDto>(
             pagedResult.Items.Select(ToSummaryDto).ToArray(),
@@ -50,5 +50,18 @@ public static class SaleMappings
             pagedResult.PageSize,
             pagedResult.TotalPages,
             pagedResult.TotalCount);
+    }
+
+    private static SaleSummaryDto ToSummaryDto(SaleSummary summary)
+    {
+        return new SaleSummaryDto(
+            summary.Id,
+            summary.SaleNumber,
+            summary.SoldAt,
+            summary.CustomerName,
+            summary.BranchName,
+            summary.TotalAmount,
+            summary.Status,
+            summary.ItemCount);
     }
 }

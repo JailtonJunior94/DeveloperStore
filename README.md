@@ -281,14 +281,87 @@ Exemplo:
 
 - `.NET SDK 10`
 - `Docker`
-- `Docker Compose`
+- `Docker Compose v2`
+- `GNU Make`
 
-## Passo a passo com Docker
+### Como usar o Makefile em macOS, Linux e Windows
+
+O `Makefile` é a forma principal de operar o projeto. Ele centraliza os comandos úteis de build, execução, testes, Docker e migrations.
+
+Instalação e uso por sistema operacional:
+
+- `macOS`: o mais comum é já ter `make` com `Xcode Command Line Tools`. Se faltar, rode `xcode-select --install`.
+- `Linux`: instale `make` pelo gerenciador da sua distro, por exemplo `sudo apt-get install make`, `sudo dnf install make` ou `sudo pacman -S make`.
+- `Windows`: o fluxo recomendado é executar o projeto em `WSL` ou `Git Bash`, porque este `Makefile` usa `bash`. Em shell nativo `PowerShell` ou `cmd.exe`, prefira os comandos diretos `.NET` e `docker compose` se não tiver `make` compatível instalado.
+
+Primeiro passo em qualquer ambiente:
+
+```bash
+make help
+```
+
+### Fluxos principais com Makefile
+
+Fluxo mais comum para trabalhar no projeto:
+
+```bash
+make restore
+make build
+make test
+make run
+```
+
+Fluxo completo com Docker:
+
+```bash
+make docker-up-build
+```
+
+Validação mais forte do repositório:
+
+```bash
+make verify
+make verify-full
+```
+
+### Comandos úteis disponíveis
+
+- `make help`: lista todos os alvos disponíveis.
+- `make doctor`: mostra versões locais de `dotnet`, `docker` e `docker compose`.
+- `make restore`: restaura pacotes NuGet e a tool local `dotnet-ef`.
+- `make build`: compila a solução.
+- `make run`: sobe a API localmente.
+- `make watch`: sobe a API com hot reload.
+- `make format`: formata a solução.
+- `make format-check`: valida formatação sem alterar arquivos.
+- `make test`: roda `Unit`, `Integration` e `Functional`.
+- `make test-bdd`: roda a suíte BDD com `Testcontainers`.
+- `make test-postgres`: sobe PostgreSQL via Docker Compose e roda a suíte dedicada ao provider real.
+- `make coverage`: coleta cobertura das suítes locais rápidas.
+- `make verify`: executa `format-check`, `build` e `test`.
+- `make verify-full`: executa `verify` e adiciona `BDD` + `PostgreSQL real`.
+- `make publish`: publica a API em `artifacts/publish`.
+- `make docker-up`: sobe a stack atual em background.
+- `make docker-up-build`: reconstrói a imagem e sobe a stack em background.
+- `make docker-down`: derruba a stack sem apagar volume.
+- `make docker-down-volumes`: derruba a stack e remove o volume nomeado do PostgreSQL.
+- `make docker-logs`: acompanha logs da stack.
+- `make docker-ps`: mostra status dos serviços.
+- `make db-up`: sobe apenas o PostgreSQL.
+- `make db-logs`: acompanha logs do PostgreSQL.
+- `make db-shell`: abre `psql` dentro do container do PostgreSQL.
+- `make migrate`: aplica migrations pendentes no banco configurado.
+- `make migrate-list`: lista migrations conhecidas pelo EF Core; com banco configurado, também tenta informar status aplicado ou pendente.
+- `make migrate-add NAME=NomeDaMigration`: cria uma nova migration.
+- `make migrate-remove`: remove a última migration ainda não aplicada.
+- `make migrate-script`: gera script SQL idempotente em `artifacts/migrations/idempotent.sql`.
+
+### Passo a passo com Docker
 
 ### 1. Suba a infraestrutura e a API
 
 ```bash
-docker compose up --build
+make docker-up-build
 ```
 
 ### 2. Acesse a aplicação
@@ -297,7 +370,19 @@ docker compose up --build
 - Swagger: `http://localhost:8080/swagger`
 - Health: `http://localhost:8080/health`
 
-### 3. Observação importante
+### 3. Derrube a stack quando terminar
+
+```bash
+make docker-down
+```
+
+Se quiser apagar também o volume do PostgreSQL:
+
+```bash
+make docker-down-volumes
+```
+
+### 4. Observação importante
 
 No ambiente Docker, as migrations são aplicadas no startup porque `Database__ApplyMigrationsOnStartup=true` está configurado no compose.
 
@@ -315,7 +400,13 @@ Exemplo:
 export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=developerstore;Username=developerstore_app;Password=developerstore_local_only"
 ```
 
-### 3. Escolha se quer aplicar migration automaticamente
+### 3. Aplique migrations manualmente
+
+```bash
+make migrate
+```
+
+### 4. Escolha se quer aplicar migration automaticamente
 
 Por padrão, a API não aplica migrations automaticamente.
 
@@ -325,16 +416,51 @@ Para habilitar:
 export Database__ApplyMigrationsOnStartup=true
 ```
 
-### 4. Rode a API
+### 5. Rode a API
 
 ```bash
-dotnet run --project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj
+make run
 ```
 
-## Como aplicar migrations manualmente
+## Referência direta sem Makefile
+
+Se preferir operar sem `make`, estes são os equivalentes diretos mais úteis.
+
+### Docker
 
 ```bash
+docker compose up -d --build
+docker compose down --remove-orphans
+docker compose down --volumes --remove-orphans
+docker compose logs -f
+docker compose up -d developerstore.db
+```
+
+### .NET
+
+```bash
+dotnet tool restore
+dotnet restore DeveloperStore.slnx
+dotnet build DeveloperStore.slnx
+dotnet run --project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj
+dotnet watch --project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj run
+dotnet format DeveloperStore.slnx --verify-no-changes
+```
+
+### EF Core migrations
+
+Para `migrate-list`, `migrate` e comandos que precisem verificar o estado aplicado no banco, configure uma `ConnectionStrings__DefaultConnection` válida antes de executar.
+
+```bash
+dotnet tool run dotnet-ef migrations list \
+  --project src/DeveloperStore.ORM/DeveloperStore.ORM.csproj \
+  --startup-project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj
+
 dotnet tool run dotnet-ef database update \
+  --project src/DeveloperStore.ORM/DeveloperStore.ORM.csproj \
+  --startup-project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj
+
+dotnet tool run dotnet-ef migrations add NomeDaMigration \
   --project src/DeveloperStore.ORM/DeveloperStore.ORM.csproj \
   --startup-project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj
 ```
@@ -346,7 +472,7 @@ dotnet tool run dotnet-ef database update \
 Validam regras de domínio e handlers isolados.
 
 ```bash
-dotnet test tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj --no-restore
+make test-unit
 ```
 
 ### Testes de integração
@@ -354,7 +480,7 @@ dotnet test tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj --no-restore
 Validam o repositório e consultas em nível de infraestrutura.
 
 ```bash
-dotnet test tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj --no-restore
+make test-integration
 ```
 
 ### Testes funcionais
@@ -362,7 +488,13 @@ dotnet test tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj -
 Validam o contrato HTTP da API.
 
 ```bash
-dotnet test tests/DeveloperStore.Functional/DeveloperStore.Functional.csproj --no-restore
+make test-functional
+```
+
+### Suíte local rápida
+
+```bash
+make test
 ```
 
 ### Prova real com PostgreSQL
@@ -370,13 +502,19 @@ dotnet test tests/DeveloperStore.Functional/DeveloperStore.Functional.csproj --n
 Sobe um PostgreSQL via Docker, aplica migrations e roda a suíte dedicada ao banco real.
 
 ```bash
-./scripts/validate-postgres.sh
+make test-postgres
+```
+
+### BDD com Testcontainers
+
+```bash
+make test-bdd
 ```
 
 ### Formatter
 
 ```bash
-dotnet format DeveloperStore.slnx --verify-no-changes
+make format-check
 ```
 
 ## O que os testes comprovam
@@ -394,12 +532,11 @@ dotnet format DeveloperStore.slnx --verify-no-changes
 As seguintes validações são as evidências principais de que a solução está operacional no escopo de `sales`:
 
 ```bash
-dotnet build DeveloperStore.slnx --no-restore
-dotnet test tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj --no-restore
-dotnet test tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj --no-restore
-dotnet test tests/DeveloperStore.Functional/DeveloperStore.Functional.csproj --no-restore
-./scripts/validate-postgres.sh
-dotnet format DeveloperStore.slnx --verify-no-changes
+make build
+make test
+make test-bdd
+make test-postgres
+make format-check
 ```
 
 ## Exemplo de criação de venda

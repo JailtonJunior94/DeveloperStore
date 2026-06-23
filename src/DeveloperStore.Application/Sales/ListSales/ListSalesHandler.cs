@@ -1,5 +1,6 @@
 using DeveloperStore.Application.Sales.Common;
 using DeveloperStore.Domain.Repositories;
+using DeveloperStore.Domain.ValueObjects;
 using MediatR;
 
 namespace DeveloperStore.Application.Sales.ListSales;
@@ -15,18 +16,15 @@ public sealed class ListSalesHandler : IRequestHandler<ListSalesQuery, PagedResp
 
     public async Task<PagedResponse<SaleSummaryDto>> Handle(ListSalesQuery request, CancellationToken cancellationToken)
     {
-        var result = await _saleRepository.ListAsync(
-            new SaleListFilter(
-                request.SaleNumber,
-                request.CustomerName,
-                request.BranchName,
-                request.Status,
-                request.MinSoldAt,
-                request.MaxSoldAt,
-                request.Order,
-                request.PageNumber,
-                request.PageSize),
-            cancellationToken);
+        var filter = new SaleListFilter(
+            SaleNumberFilter.Create(request.SaleNumber),
+            TextFilter.Create(request.CustomerName),
+            TextFilter.Create(request.BranchName),
+            request.Status,
+            SoldAtRange.Create(request.MinSoldAt, request.MaxSoldAt),
+            new PageRequest(request.PageNumber, request.PageSize, request.Order));
+
+        var result = await _saleRepository.ListAsync(filter, cancellationToken);
 
         return result.ToResponse();
     }

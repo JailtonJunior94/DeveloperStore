@@ -1,14 +1,12 @@
 using DeveloperStore.Domain.Enums;
+using DeveloperStore.Domain.ValueObjects;
 
 namespace DeveloperStore.Domain.Repositories;
 
 public sealed record SaleListFilter(
-    string? SaleNumber,
-    string? CustomerName,
-    string? BranchName,
+    SaleNumberFilter? SaleNumber,
+    TextFilter? CustomerName,
+    TextFilter? BranchName,
     SaleStatus? Status,
-    DateTimeOffset? MinSoldAt,
-    DateTimeOffset? MaxSoldAt,
-    string? Order,
-    int PageNumber,
-    int PageSize);
+    SoldAtRange? SoldAtRange,
+    PageRequest Pagination);

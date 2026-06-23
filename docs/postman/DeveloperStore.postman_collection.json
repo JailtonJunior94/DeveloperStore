@@ -1,0 +1,922 @@
+{
+  "info": {
+    "_postman_id": "b7148b61-f340-4d37-b8fe-6d9b15d18b8c",
+    "name": "DeveloperStore API",
+    "description": "Colecao Postman gerada a partir de src/DeveloperStore.WebApi e do bootstrap da aplicacao. Inclui endpoints de sales, health checks e Swagger.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const now = new Date();",
+          "const stamp = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);",
+          "const defaults = {",
+          "  api_version: 'v1',",
+          "  base_url: pm.environment.get('base_url') || 'http://localhost:5119',",
+          "  token: pm.environment.get('token') || '',",
+          "  sale_number: `SALE-${stamp}` ,",
+          "  updated_sale_number: `SALE-${stamp}-UPD`,",
+          "  sold_at: now.toISOString(),",
+          "  customer_external_id: `customer-${stamp}`,",
+          "  customer_name: 'Jane Doe',",
+          "  branch_external_id: `branch-${stamp}`,",
+          "  branch_name: 'Central',",
+          "  product_external_id: `product-${stamp}`,",
+          "  product_name: 'Notebook Pro 14',",
+          "  product_quantity: '4',",
+          "  product_unit_price: '10.00',",
+          "  updated_product_quantity: '10',",
+          "  list_page: '1',",
+          "  list_size: '10',",
+          "  list_order: 'soldAt desc, saleNumber asc',",
+          "  list_status: 'NotCancelled'",
+          "};",
+          "Object.entries(defaults).forEach(([key, value]) => {",
+          "  if (!pm.collectionVariables.get(key)) {",
+          "    pm.collectionVariables.set(key, value);",
+          "  }",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "api_version",
+      "value": "v1"
+    },
+    {
+      "key": "base_url",
+      "value": "http://localhost:5119"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "sale_number",
+      "value": ""
+    },
+    {
+      "key": "updated_sale_number",
+      "value": ""
+    },
+    {
+      "key": "sold_at",
+      "value": ""
+    },
+    {
+      "key": "customer_external_id",
+      "value": ""
+    },
+    {
+      "key": "customer_name",
+      "value": ""
+    },
+    {
+      "key": "branch_external_id",
+      "value": ""
+    },
+    {
+      "key": "branch_name",
+      "value": ""
+    },
+    {
+      "key": "product_external_id",
+      "value": ""
+    },
+    {
+      "key": "product_name",
+      "value": ""
+    },
+    {
+      "key": "product_quantity",
+      "value": ""
+    },
+    {
+      "key": "product_unit_price",
+      "value": ""
+    },
+    {
+      "key": "updated_product_quantity",
+      "value": ""
+    },
+    {
+      "key": "sale_id",
+      "value": ""
+    },
+    {
+      "key": "sale_item_id",
+      "value": ""
+    },
+    {
+      "key": "sale_status",
+      "value": ""
+    },
+    {
+      "key": "created_sale_location",
+      "value": ""
+    },
+    {
+      "key": "list_page",
+      "value": "1"
+    },
+    {
+      "key": "list_size",
+      "value": "10"
+    },
+    {
+      "key": "list_order",
+      "value": "soldAt desc, saleNumber asc"
+    },
+    {
+      "key": "list_status",
+      "value": "NotCancelled"
+    }
+  ],
+  "item": [
+    {
+      "name": "Platform",
+      "item": [
+        {
+          "name": "01 - Health Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200 or 503', function () {",
+                  "  pm.expect([200, 503]).to.include(pm.response.code);",
+                  "});",
+                  "const body = pm.response.json();",
+                  "pm.test('health summary has status', function () {",
+                  "  pm.expect(body).to.have.property('status');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Verifica o health agregado da aplicacao."
+          },
+          "response": [
+            {
+              "name": "Healthy",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/health",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "health"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"Healthy\",\n  \"healthChecks\": [\n    {\n      \"name\": \"Liveness\",\n      \"status\": \"Healthy\",\n      \"description\": null,\n      \"errorMessage\": null,\n      \"hostEnvironment\": \"development\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "02 - Health Live",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('liveness is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/live",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            },
+            "description": "Verifica o health de liveness."
+          },
+          "response": []
+        },
+        {
+          "name": "03 - Health Ready",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('readiness is 200 or 503', function () {",
+                  "  pm.expect([200, 503]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health/ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Verifica o health de readiness com dependencia relacional."
+          },
+          "response": []
+        },
+        {
+          "name": "04 - Swagger JSON",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "pm.test('swagger version is present', function () {",
+                  "  pm.expect(body).to.have.property('openapi');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/swagger/{{api_version}}/swagger.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "swagger",
+                "{{api_version}}",
+                "swagger.json"
+              ]
+            },
+            "description": "Recupera o contrato OpenAPI servido em runtime."
+          },
+          "response": []
+        },
+        {
+          "name": "05 - Swagger Shortcut",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('swagger shortcut returns html or redirect', function () {",
+                  "  pm.expect([200, 301, 302, 307, 308]).to.include(pm.response.code);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/swagger",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "swagger"
+              ]
+            },
+            "description": "Atalho para a UI do Swagger."
+          },
+          "response": []
+        },
+        {
+          "name": "06 - Swagger UI",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('swagger ui returns html', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  pm.expect(pm.response.text()).to.include('Swagger UI');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/swagger/index.html",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "swagger",
+                "index.html"
+              ]
+            },
+            "description": "UI HTML do Swagger."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sales",
+      "item": [
+        {
+          "name": "07 - Create Sale",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const now = new Date();",
+                  "const stamp = now.toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);",
+                  "pm.collectionVariables.set('sale_number', `SALE-${stamp}`);",
+                  "pm.collectionVariables.set('updated_sale_number', `SALE-${stamp}-UPD`);",
+                  "pm.collectionVariables.set('sold_at', now.toISOString());",
+                  "pm.collectionVariables.set('customer_external_id', `customer-${stamp}`);",
+                  "pm.collectionVariables.set('branch_external_id', `branch-${stamp}`);",
+                  "pm.collectionVariables.set('product_external_id', `product-${stamp}`);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(201);",
+                  "const body = pm.response.json();",
+                  "pm.test('sale created with id', function () {",
+                  "  pm.expect(body.data.id).to.match(/^[0-9a-fA-F-]{36}$/);",
+                  "});",
+                  "pm.collectionVariables.set('sale_id', body.data.id);",
+                  "pm.collectionVariables.set('sale_status', body.data.status);",
+                  "if (body.data.items && body.data.items.length > 0) {",
+                  "  pm.collectionVariables.set('sale_item_id', body.data.items[0].id);",
+                  "}",
+                  "pm.collectionVariables.set('created_sale_location', pm.response.headers.get('Location') || '');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"saleNumber\": \"{{sale_number}}\",\n  \"soldAt\": \"{{sold_at}}\",\n  \"customerExternalId\": \"{{customer_external_id}}\",\n  \"customerName\": \"{{customer_name}}\",\n  \"branchExternalId\": \"{{branch_external_id}}\",\n  \"branchName\": \"{{branch_name}}\",\n  \"items\": [\n    {\n      \"productExternalId\": \"{{product_external_id}}\",\n      \"productName\": \"{{product_name}}\",\n      \"quantity\": {{product_quantity}},\n      \"unitPrice\": {{product_unit_price}}\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sales",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales"
+              ]
+            },
+            "description": "Cria uma venda e alimenta as variaveis `sale_id`, `sale_item_id` e `created_sale_location`."
+          },
+          "response": [
+            {
+              "name": "Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"saleNumber\": \"SALE-20260623123000\",\n  \"soldAt\": \"2026-06-23T12:30:00Z\",\n  \"customerExternalId\": \"customer-20260623123000\",\n  \"customerName\": \"Jane Doe\",\n  \"branchExternalId\": \"branch-20260623123000\",\n  \"branchName\": \"Central\",\n  \"items\": [\n    {\n      \"productExternalId\": \"product-20260623123000\",\n      \"productName\": \"Notebook Pro 14\",\n      \"quantity\": 4,\n      \"unitPrice\": 10.00\n    }\n  ]\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/sales",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sales"
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                },
+                {
+                  "key": "Location",
+                  "value": "/api/sales/c3cb8a39-8c10-4ac5-a790-9ea5abf35f70"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"c3cb8a39-8c10-4ac5-a790-9ea5abf35f70\",\n    \"saleNumber\": \"SALE-20260623123000\",\n    \"soldAt\": \"2026-06-23T12:30:00+00:00\",\n    \"customerExternalId\": \"customer-20260623123000\",\n    \"customerName\": \"Jane Doe\",\n    \"branchExternalId\": \"branch-20260623123000\",\n    \"branchName\": \"Central\",\n    \"totalAmount\": 36.00,\n    \"status\": \"NotCancelled\",\n    \"items\": [\n      {\n        \"id\": \"4dc8c5da-54df-45a0-8d7d-a37387a1d143\",\n        \"productExternalId\": \"product-20260623123000\",\n        \"productName\": \"Notebook Pro 14\",\n        \"quantity\": 4,\n        \"unitPrice\": 10.00,\n        \"discountPercentage\": 0.10,\n        \"discountAmount\": 4.00,\n        \"totalAmount\": 36.00,\n        \"isCancelled\": false\n      }\n    ]\n  }\n}"
+            },
+            {
+              "name": "Validation Failed",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"saleNumber\": \"\",\n  \"soldAt\": \"2026-06-23T12:30:00Z\",\n  \"customerExternalId\": \"\",\n  \"customerName\": \"\",\n  \"branchExternalId\": \"\",\n  \"branchName\": \"\",\n  \"items\": []\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/api/sales",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sales"
+                  ]
+                }
+              },
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"type\": \"validation_failed\",\n  \"error\": \"Request validation failed\",\n  \"detail\": \"One or more business input rules were violated.\",\n  \"status\": 422,\n  \"traceId\": \"00-00000000000000000000000000000000-0000000000000000-00\",\n  \"errors\": [\n    {\n      \"code\": \"sale_number_required\",\n      \"field\": \"SaleNumber\",\n      \"message\": \"saleNumber is required\"\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "08 - Get Sale By Id",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sale_id is available', function () {",
+                  "  pm.expect(pm.collectionVariables.get('sale_id')).to.not.be.empty;",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "pm.test('returned sale matches tracked id', function () {",
+                  "  pm.expect(body.data.id).to.eql(pm.collectionVariables.get('sale_id'));",
+                  "});",
+                  "if (body.data.items && body.data.items.length > 0) {",
+                  "  pm.collectionVariables.set('sale_item_id', body.data.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sales/{{sale_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales",
+                "{{sale_id}}"
+              ]
+            },
+            "description": "Consulta a venda criada anteriormente usando `sale_id`."
+          },
+          "response": []
+        },
+        {
+          "name": "09 - List Sales",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "pm.test('paged response shape is valid', function () {",
+                  "  pm.expect(body).to.have.property('data');",
+                  "  pm.expect(body).to.have.property('pageNumber');",
+                  "  pm.expect(body).to.have.property('pageSize');",
+                  "});",
+                  "if ((!pm.collectionVariables.get('sale_id')) && body.data && body.data.length > 0) {",
+                  "  pm.collectionVariables.set('sale_id', body.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sales?saleNumber={{sale_number}}&customerName={{customer_name}}&branchName={{branch_name}}&status={{list_status}}&_page={{list_page}}&_size={{list_size}}&_order={{list_order}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales"
+              ],
+              "query": [
+                {
+                  "key": "saleNumber",
+                  "value": "{{sale_number}}"
+                },
+                {
+                  "key": "customerName",
+                  "value": "{{customer_name}}"
+                },
+                {
+                  "key": "branchName",
+                  "value": "{{branch_name}}"
+                },
+                {
+                  "key": "status",
+                  "value": "{{list_status}}"
+                },
+                {
+                  "key": "_page",
+                  "value": "{{list_page}}"
+                },
+                {
+                  "key": "_size",
+                  "value": "{{list_size}}"
+                },
+                {
+                  "key": "_order",
+                  "value": "{{list_order}}"
+                }
+              ]
+            },
+            "description": "Lista vendas usando os filtros canônicos documentados pela API."
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/sales?saleNumber=SALE-20260623123000&customerName=Jane%20Doe&branchName=Central&status=NotCancelled&_page=1&_size=10&_order=soldAt%20desc,%20saleNumber%20asc",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "sales"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"c3cb8a39-8c10-4ac5-a790-9ea5abf35f70\",\n      \"saleNumber\": \"SALE-20260623123000\",\n      \"soldAt\": \"2026-06-23T12:30:00+00:00\",\n      \"customerName\": \"Jane Doe\",\n      \"branchName\": \"Central\",\n      \"totalAmount\": 36.00,\n      \"status\": \"NotCancelled\",\n      \"itemCount\": 1\n    }\n  ],\n  \"pageNumber\": 1,\n  \"pageSize\": 10,\n  \"totalPages\": 1,\n  \"totalCount\": 1\n}"
+            }
+          ]
+        },
+        {
+          "name": "10 - List Sales Legacy Alias",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "pm.test('legacy alias query also returns paged data', function () {",
+                  "  pm.expect(body).to.have.property('data');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sales?customer={{customer_name}}&branch={{branch_name}}&_page={{list_page}}&_size={{list_size}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales"
+              ],
+              "query": [
+                {
+                  "key": "customer",
+                  "value": "{{customer_name}}"
+                },
+                {
+                  "key": "branch",
+                  "value": "{{branch_name}}"
+                },
+                {
+                  "key": "_page",
+                  "value": "{{list_page}}"
+                },
+                {
+                  "key": "_size",
+                  "value": "{{list_size}}"
+                }
+              ]
+            },
+            "description": "Exercita os aliases legados `customer` e `branch` aceitos pelo endpoint de listagem."
+          },
+          "response": []
+        },
+        {
+          "name": "11 - Update Sale",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sale_id is available', function () {",
+                  "  pm.expect(pm.collectionVariables.get('sale_id')).to.not.be.empty;",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "pm.test('sale number was updated', function () {",
+                  "  pm.expect(body.data.saleNumber).to.eql(pm.collectionVariables.get('updated_sale_number'));",
+                  "});",
+                  "pm.collectionVariables.set('sale_status', body.data.status);",
+                  "if (body.data.items && body.data.items.length > 0) {",
+                  "  pm.collectionVariables.set('sale_item_id', body.data.items[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"saleNumber\": \"{{updated_sale_number}}\",\n  \"soldAt\": \"{{sold_at}}\",\n  \"customerExternalId\": \"{{customer_external_id}}\",\n  \"customerName\": \"{{customer_name}}\",\n  \"branchExternalId\": \"{{branch_external_id}}\",\n  \"branchName\": \"{{branch_name}}\",\n  \"items\": [\n    {\n      \"productExternalId\": \"{{product_external_id}}\",\n      \"productName\": \"{{product_name}}\",\n      \"quantity\": {{updated_product_quantity}},\n      \"unitPrice\": {{product_unit_price}}\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/sales/{{sale_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales",
+                "{{sale_id}}"
+              ]
+            },
+            "description": "Atualiza a venda rastreada em `sale_id` e refresca `sale_item_id`."
+          },
+          "response": []
+        },
+        {
+          "name": "12 - Cancel Sale Item",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sale_id and sale_item_id are available', function () {",
+                  "  pm.expect(pm.collectionVariables.get('sale_id')).to.not.be.empty;",
+                  "  pm.expect(pm.collectionVariables.get('sale_item_id')).to.not.be.empty;",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "const itemId = pm.collectionVariables.get('sale_item_id');",
+                  "const cancelledItem = (body.data.items || []).find(item => item.id === itemId);",
+                  "pm.test('tracked item is cancelled', function () {",
+                  "  pm.expect(cancelledItem).to.exist;",
+                  "  pm.expect(cancelledItem.isCancelled).to.eql(true);",
+                  "});",
+                  "pm.collectionVariables.set('sale_status', body.data.status);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sales/{{sale_id}}/items/{{sale_item_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales",
+                "{{sale_id}}",
+                "items",
+                "{{sale_item_id}}",
+                "cancel"
+              ]
+            },
+            "description": "Cancela logicamente o item armazenado em `sale_item_id`."
+          },
+          "response": []
+        },
+        {
+          "name": "13 - Cancel Sale",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sale_id is available', function () {",
+                  "  pm.expect(pm.collectionVariables.get('sale_id')).to.not.be.empty;",
+                  "});"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('sale_status', body.data.status);",
+                  "pm.test('sale status is cancelled', function () {",
+                  "  pm.expect(body.data.status).to.eql('Cancelled');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sales/{{sale_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales",
+                "{{sale_id}}"
+              ]
+            },
+            "description": "Cancela logicamente a venda rastreada em `sale_id`."
+          },
+          "response": []
+        },
+        {
+          "name": "14 - Get Cancelled Sale",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.response.to.have.status(200);",
+                  "const body = pm.response.json();",
+                  "pm.test('sale remains cancelled after reload', function () {",
+                  "  pm.expect(body.data.status).to.eql('Cancelled');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/sales/{{sale_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "sales",
+                "{{sale_id}}"
+              ]
+            },
+            "description": "Reconsulta a venda para confirmar o estado final apos o cancelamento."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

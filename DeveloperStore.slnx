@@ -12,5 +12,6 @@
     <Project Path="tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj" />
     <Project Path="tests/DeveloperStore.Postgres/DeveloperStore.Postgres.csproj" />
     <Project Path="tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj" />
+    <Project Path="tests/DeveloperStore.BDD/DeveloperStore.BDD.csproj" />
   </Folder>
 </Solution>

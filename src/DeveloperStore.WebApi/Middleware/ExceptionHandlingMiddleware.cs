@@ -6,11 +6,17 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DeveloperStore.WebApi.Middleware;
 
 public sealed class ExceptionHandlingMiddleware
 {
+    private static readonly JsonSerializerOptions ErrorJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() }
+    };
+
     private readonly RequestDelegate _next;
     private readonly ILogger<ExceptionHandlingMiddleware> _logger;
 
@@ -40,7 +46,7 @@ public sealed class ExceptionHandlingMiddleware
         }
         catch (Exception exception)
         {
-            _logger.LogError(exception, "Unhandled request failure");
+            _logger.LogError(exception, "Unhandled request failure for {Path}", context.Request.Path);
             await WriteErrorAsync(
                 context,
                 HttpStatusCode.InternalServerError,
@@ -64,12 +70,25 @@ public sealed class ExceptionHandlingMiddleware
 
     private static Task WriteDomainErrorAsync(HttpContext context, DomainException exception)
     {
+        var statusCode = MapDomainExceptionToStatusCode(exception);
         return WriteErrorAsync(
             context,
-            exception.StatusCode,
+            statusCode,
             exception.Code,
             exception.Title,
             exception.Message);
+    }
+
+    private static HttpStatusCode MapDomainExceptionToStatusCode(DomainException exception)
+    {
+        return exception switch
+        {
+            BusinessRuleValidationException => HttpStatusCode.UnprocessableEntity,
+            NotFoundException => HttpStatusCode.NotFound,
+            DuplicateSaleNumberException => HttpStatusCode.Conflict,
+            SaleStateConflictException => HttpStatusCode.Conflict,
+            _ => HttpStatusCode.InternalServerError
+        };
     }
 
     private static DomainException? TryMapToDomainException(DbUpdateException exception)
@@ -132,7 +151,9 @@ public sealed class ExceptionHandlingMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
 
-        var payload = JsonSerializer.Serialize(ApiErrorFactory.Create(context, statusCode, type, title, detail, details));
+        var payload = JsonSerializer.Serialize(
+            ApiErrorFactory.Create(context, statusCode, type, title, detail, details),
+            ErrorJsonOptions);
         await context.Response.WriteAsync(payload);
     }
 }

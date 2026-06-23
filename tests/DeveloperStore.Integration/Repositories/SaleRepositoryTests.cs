@@ -39,12 +39,18 @@ public class SaleRepositoryTests
         await repository.AddAsync(cancelledSale, CancellationToken.None);
         await repository.SaveChangesAsync(CancellationToken.None);
 
-        var result = await repository.ListAsync(
-            new SaleListFilter(null, "Alice*", null, SaleStatus.NotCancelled, null, null, null, 1, 10),
-            CancellationToken.None);
+        var filter = new SaleListFilter(
+            null,
+            TextFilter.Create("Alice*"),
+            null,
+            SaleStatus.NotCancelled,
+            null,
+            new PageRequest(1, 10, "soldAt asc, saleNumber asc"));
+
+        var result = await repository.ListAsync(filter, CancellationToken.None);
 
         result.Items.Should().ContainSingle();
-        result.Items.Single().SaleNumber.Value.Should().Be("SALE-201");
+        result.Items.Single().SaleNumber.Should().Be("SALE-201");
     }
 
     private static DefaultContext BuildContext()

@@ -33,57 +33,40 @@ public sealed class SaleRepository : ISaleRepository
             .FirstOrDefaultAsync(sale => sale.SaleNumber == saleNumber, cancellationToken);
     }
 
-    public async Task<PagedResult<Sale>> ListAsync(SaleListFilter filter, CancellationToken cancellationToken)
+    public async Task<PagedResult<SaleSummary>> ListAsync(SaleListFilter filter, CancellationToken cancellationToken)
     {
-        var sqlQuery = _context.Sales
-            .AsNoTracking()
-            .Select(sale => new SaleListRow
-            {
-                Id = sale.Id.Value,
-                SaleNumber = EF.Property<string>(sale, nameof(Sale.SaleNumber)),
-                SoldAt = sale.SoldAt.Value,
-                CustomerName = sale.Customer.Description,
-                BranchName = sale.Branch.Description,
-                TotalAmount = sale.TotalAmount.Value,
-                Status = sale.Status,
-                ItemCount = sale.Items.Count
-            });
+        var query = _context.Sales.AsNoTracking();
 
-        sqlQuery = ApplySaleNumberFilter(sqlQuery, filter.SaleNumber);
+        query = ApplySaleNumberExactFilter(query, filter.SaleNumber);
 
         if (filter.Status.HasValue)
-            sqlQuery = sqlQuery.Where(sale => sale.Status == filter.Status.Value);
-        if (filter.MinSoldAt.HasValue)
-            sqlQuery = sqlQuery.Where(sale => sale.SoldAt >= filter.MinSoldAt.Value);
-        if (filter.MaxSoldAt.HasValue)
-            sqlQuery = sqlQuery.Where(sale => sale.SoldAt <= filter.MaxSoldAt.Value);
+            query = query.Where(sale => sale.Status == filter.Status.Value);
 
-        var rows = await sqlQuery.ToListAsync(cancellationToken);
+        var projectedQuery = query.Select(sale => new SaleSummary(
+            sale.Id.Value,
+            sale.SaleNumber.Value,
+            sale.SoldAt.Value,
+            sale.Customer.Description,
+            sale.Branch.Description,
+            sale.TotalAmount.Value,
+            sale.Status,
+            sale.Items.Count));
 
-        var filtered = ApplyCustomerFilterInMemory(rows, filter.CustomerName);
-        filtered = ApplyBranchFilterInMemory(filtered, filter.BranchName);
+        var rows = await projectedQuery.ToListAsync(cancellationToken);
+
+        var filtered = ApplySaleNumberWildcardFilterInMemory(rows, filter.SaleNumber);
+        filtered = ApplySoldAtRangeFilterInMemory(filtered, filter.SoldAtRange);
+        filtered = ApplyTextFilterInMemory(filtered, filter.CustomerName, summary => summary.CustomerName);
+        filtered = ApplyTextFilterInMemory(filtered, filter.BranchName, summary => summary.BranchName);
 
         var totalCount = filtered.LongCount();
-        var pageIds = ApplyInMemoryOrdering(filtered, filter.Order)
-            .Skip((filter.PageNumber - 1) * filter.PageSize)
-            .Take(filter.PageSize)
-            .Select(row => row.Id)
+        var ordered = ApplyInMemoryOrdering(filtered, filter.Pagination.Order);
+        var paged = ordered
+            .Skip((filter.Pagination.PageNumber - 1) * filter.Pagination.PageSize)
+            .Take(filter.Pagination.PageSize)
             .ToList();
 
-        var sortOrder = pageIds
-            .Select((id, index) => new { id, index })
-            .ToDictionary(entry => entry.id, entry => entry.index);
-
-        var saleIds = pageIds.Select(SaleId.Create).ToList();
-        var items = await _context.Sales
-            .AsNoTracking()
-            .Where(sale => saleIds.Contains(sale.Id))
-            .Include(sale => sale.Items)
-            .ToArrayAsync(cancellationToken);
-
-        Array.Sort(items, (left, right) => sortOrder[left.Id.Value].CompareTo(sortOrder[right.Id.Value]));
-
-        return new PagedResult<Sale>(items, filter.PageNumber, filter.PageSize, totalCount);
+        return new PagedResult<SaleSummary>(paged, filter.Pagination.PageNumber, filter.Pagination.PageSize, totalCount);
     }
 
     public async Task AddAsync(Sale sale, CancellationToken cancellationToken)
@@ -96,94 +79,69 @@ public sealed class SaleRepository : ISaleRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
-    private static IQueryable<SaleListRow> ApplySaleNumberFilter(
-        IQueryable<SaleListRow> query,
-        string? rawValue)
+    private static IQueryable<Sale> ApplySaleNumberExactFilter(IQueryable<Sale> query, SaleNumberFilter? filter)
     {
-        if (string.IsNullOrWhiteSpace(rawValue))
+        if (filter is null || filter.Value.Mode != StringMatchMode.Equals)
         {
             return query;
         }
 
-        var value = rawValue.Trim();
-        var startsWithWildcard = value.StartsWith('*');
-        var endsWithWildcard = value.EndsWith('*');
-        var normalized = value.Trim('*');
-
-        if (string.IsNullOrWhiteSpace(normalized))
-        {
-            return query;
-        }
-
-        if (startsWithWildcard && endsWithWildcard)
-        {
-            return query.Where(sale => EF.Functions.Like(sale.SaleNumber, BuildLikePattern(normalized, StringMatchMode.Contains)));
-        }
-
-        if (startsWithWildcard)
-        {
-            return query.Where(sale => EF.Functions.Like(sale.SaleNumber, BuildLikePattern(normalized, StringMatchMode.EndsWith)));
-        }
-
-        if (endsWithWildcard)
-        {
-            return query.Where(sale => EF.Functions.Like(sale.SaleNumber, BuildLikePattern(normalized, StringMatchMode.StartsWith)));
-        }
-
-        return query.Where(sale => sale.SaleNumber == normalized);
+        var saleNumber = SaleNumber.Create(filter.Value.Text);
+        return query.Where(sale => sale.SaleNumber == saleNumber);
     }
 
-    private static IEnumerable<SaleListRow> ApplyCustomerFilterInMemory(IEnumerable<SaleListRow> rows, string? rawValue)
+    private static IEnumerable<SaleSummary> ApplySaleNumberWildcardFilterInMemory(IEnumerable<SaleSummary> rows, SaleNumberFilter? filter)
     {
-        if (string.IsNullOrWhiteSpace(rawValue))
+        if (filter is null || filter.Value.Mode == StringMatchMode.Equals)
             return rows;
 
-        var value = rawValue.Trim();
-        var startsWithWildcard = value.StartsWith('*');
-        var endsWithWildcard = value.EndsWith('*');
-        var normalized = value.Trim('*');
-
-        if (string.IsNullOrWhiteSpace(normalized))
-            return rows;
-
-        return matchMode(startsWithWildcard, endsWithWildcard) switch
+        var text = filter.Value.Text;
+        return filter.Value.Mode switch
         {
-            StringMatchMode.Contains => rows.Where(r => r.CustomerName.Contains(normalized, StringComparison.OrdinalIgnoreCase)),
-            StringMatchMode.EndsWith => rows.Where(r => r.CustomerName.EndsWith(normalized, StringComparison.OrdinalIgnoreCase)),
-            StringMatchMode.StartsWith => rows.Where(r => r.CustomerName.StartsWith(normalized, StringComparison.OrdinalIgnoreCase)),
-            _ => rows.Where(r => r.CustomerName.Equals(normalized, StringComparison.OrdinalIgnoreCase))
+            StringMatchMode.Contains => rows.Where(r => r.SaleNumber.Contains(text, StringComparison.OrdinalIgnoreCase)),
+            StringMatchMode.EndsWith => rows.Where(r => r.SaleNumber.EndsWith(text, StringComparison.OrdinalIgnoreCase)),
+            StringMatchMode.StartsWith => rows.Where(r => r.SaleNumber.StartsWith(text, StringComparison.OrdinalIgnoreCase)),
+            _ => rows.Where(r => r.SaleNumber.Equals(text, StringComparison.OrdinalIgnoreCase))
         };
     }
 
-    private static IEnumerable<SaleListRow> ApplyBranchFilterInMemory(IEnumerable<SaleListRow> rows, string? rawValue)
+    private static IEnumerable<SaleSummary> ApplySoldAtRangeFilterInMemory(IEnumerable<SaleSummary> rows, SoldAtRange? range)
     {
-        if (string.IsNullOrWhiteSpace(rawValue))
+        if (range is null)
             return rows;
 
-        var value = rawValue.Trim();
-        var startsWithWildcard = value.StartsWith('*');
-        var endsWithWildcard = value.EndsWith('*');
-        var normalized = value.Trim('*');
+        var soldAtRange = range.Value;
+        var min = soldAtRange.Min.Value;
+        var max = soldAtRange.Max.Value;
 
-        if (string.IsNullOrWhiteSpace(normalized))
-            return rows;
+        if (min > DateTimeOffset.MinValue)
+            rows = rows.Where(r => r.SoldAt >= min);
 
-        return matchMode(startsWithWildcard, endsWithWildcard) switch
-        {
-            StringMatchMode.Contains => rows.Where(r => r.BranchName.Contains(normalized, StringComparison.OrdinalIgnoreCase)),
-            StringMatchMode.EndsWith => rows.Where(r => r.BranchName.EndsWith(normalized, StringComparison.OrdinalIgnoreCase)),
-            StringMatchMode.StartsWith => rows.Where(r => r.BranchName.StartsWith(normalized, StringComparison.OrdinalIgnoreCase)),
-            _ => rows.Where(r => r.BranchName.Equals(normalized, StringComparison.OrdinalIgnoreCase))
-        };
+        if (max < DateTimeOffset.MaxValue)
+            rows = rows.Where(r => r.SoldAt <= max);
+
+        return rows;
     }
 
-    private static IOrderedEnumerable<SaleListRow> ApplyInMemoryOrdering(IEnumerable<SaleListRow> rows, string? order)
+    private static IEnumerable<SaleSummary> ApplyTextFilterInMemory(
+        IEnumerable<SaleSummary> rows,
+        TextFilter? filter,
+        Func<SaleSummary, string> selector)
+    {
+        if (filter is null)
+            return rows;
+
+        var textFilter = filter.Value;
+        return rows.Where(row => textFilter.Matches(selector(row)));
+    }
+
+    private static IOrderedEnumerable<SaleSummary> ApplyInMemoryOrdering(IEnumerable<SaleSummary> rows, string? order)
     {
         var segments = string.IsNullOrWhiteSpace(order)
             ? ["soldAt asc", "saleNumber asc"]
             : order.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        IOrderedEnumerable<SaleListRow>? ordered = null;
+        IOrderedEnumerable<SaleSummary>? ordered = null;
         foreach (var segment in segments)
         {
             var parts = segment.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -206,71 +164,14 @@ public sealed class SaleRepository : ISaleRepository
         return ordered ?? rows.OrderBy(r => r.SoldAt).ThenBy(r => r.SaleNumber);
     }
 
-    private static IOrderedEnumerable<SaleListRow> ApplyInMemoryOrder<TKey>(
-        IOrderedEnumerable<SaleListRow>? ordered,
-        IEnumerable<SaleListRow> rows,
-        Func<SaleListRow, TKey> keySelector,
+    private static IOrderedEnumerable<SaleSummary> ApplyInMemoryOrder<TKey>(
+        IOrderedEnumerable<SaleSummary>? ordered,
+        IEnumerable<SaleSummary> rows,
+        Func<SaleSummary, TKey> keySelector,
         bool descending)
     {
         if (ordered is null)
             return descending ? rows.OrderByDescending(keySelector) : rows.OrderBy(keySelector);
         return descending ? ordered.ThenByDescending(keySelector) : ordered.ThenBy(keySelector);
-    }
-
-    private static string BuildLikePattern(string value, StringMatchMode matchMode)
-    {
-        var escaped = value.Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal);
-
-        return matchMode switch
-        {
-            StringMatchMode.StartsWith => $"{escaped}%",
-            StringMatchMode.EndsWith => $"%{escaped}",
-            StringMatchMode.Contains => $"%{escaped}%",
-            _ => escaped
-        };
-    }
-
-    private static StringMatchMode matchMode(bool startsWithWildcard, bool endsWithWildcard)
-    {
-        if (startsWithWildcard && endsWithWildcard)
-        {
-            return StringMatchMode.Contains;
-        }
-
-        if (startsWithWildcard)
-        {
-            return StringMatchMode.EndsWith;
-        }
-
-        return endsWithWildcard ? StringMatchMode.StartsWith : StringMatchMode.Equals;
-    }
-
-    private enum StringMatchMode
-    {
-        Equals,
-        StartsWith,
-        EndsWith,
-        Contains
-    }
-
-    private sealed class SaleListRow
-    {
-        public required Guid Id { get; init; }
-
-        public required string SaleNumber { get; init; }
-
-        public required DateTimeOffset SoldAt { get; init; }
-
-        public required string CustomerName { get; init; }
-
-        public required string BranchName { get; init; }
-
-        public required decimal TotalAmount { get; init; }
-
-        public required Domain.Enums.SaleStatus Status { get; init; }
-
-        public required int ItemCount { get; init; }
     }
 }

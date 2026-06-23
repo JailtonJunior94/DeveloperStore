@@ -5,8 +5,6 @@ using DeveloperStore.Domain.ValueObjects;
 using FluentAssertions;
 using NSubstitute;
 using Xunit;
-using Sale = DeveloperStore.Domain.Entities.Sale;
-using SaleItem = DeveloperStore.Domain.Entities.SaleItem;
 
 namespace DeveloperStore.Unit.Application.Sales;
 
@@ -16,9 +14,18 @@ public class ListSalesHandlerTests
     public async Task Handle_ShouldReturnPagedResponse_WhenSalesExist()
     {
         var repository = Substitute.For<ISaleRepository>();
-        var sale = BuildSale("SALE-L01");
+        var summary = new SaleSummary(
+            Guid.NewGuid(),
+            "SALE-L01",
+            DateTimeOffset.UtcNow,
+            "John Doe",
+            "Main Branch",
+            36m,
+            SaleStatus.NotCancelled,
+            1);
+
         repository.ListAsync(Arg.Any<SaleListFilter>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<Sale>([sale], 1, 10, 1));
+            .Returns(new PagedResult<SaleSummary>([summary], 1, 10, 1));
 
         var handler = new ListSalesHandler(repository);
         var result = await handler.Handle(
@@ -36,7 +43,7 @@ public class ListSalesHandlerTests
     {
         var repository = Substitute.For<ISaleRepository>();
         repository.ListAsync(Arg.Any<SaleListFilter>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<Sale>([], 1, 10, 0));
+            .Returns(new PagedResult<SaleSummary>([], 1, 10, 0));
 
         var handler = new ListSalesHandler(repository);
         var result = await handler.Handle(
@@ -53,7 +60,7 @@ public class ListSalesHandlerTests
     {
         var repository = Substitute.For<ISaleRepository>();
         repository.ListAsync(Arg.Any<SaleListFilter>(), Arg.Any<CancellationToken>())
-            .Returns(new PagedResult<Sale>([], 2, 5, 0));
+            .Returns(new PagedResult<SaleSummary>([], 2, 5, 0));
 
         var handler = new ListSalesHandler(repository);
         var minSoldAt = DateTimeOffset.UtcNow.AddDays(-7);
@@ -65,24 +72,16 @@ public class ListSalesHandlerTests
 
         await repository.Received(1).ListAsync(
             Arg.Is<SaleListFilter>(f =>
-                f.SaleNumber == "SALE-*" &&
-                f.CustomerName == "John" &&
-                f.BranchName == "Main" &&
+                f.SaleNumber!.Value.Text == "SALE-" &&
+                f.SaleNumber.Value.Mode == StringMatchMode.StartsWith &&
+                f.CustomerName!.Value.Text == "John" &&
+                f.BranchName!.Value.Text == "Main" &&
                 f.Status == SaleStatus.NotCancelled &&
-                f.MinSoldAt == minSoldAt &&
-                f.MaxSoldAt == maxSoldAt &&
-                f.Order == "soldAt desc" &&
-                f.PageNumber == 2 &&
-                f.PageSize == 5),
+                f.SoldAtRange!.Value.Min.Value == minSoldAt &&
+                f.SoldAtRange.Value.Max.Value == maxSoldAt &&
+                f.Pagination.Order == "soldAt desc" &&
+                f.Pagination.PageNumber == 2 &&
+                f.Pagination.PageSize == 5),
             Arg.Any<CancellationToken>());
     }
-
-    private static Sale BuildSale(string saleNumber) =>
-        Sale.Create(
-            SaleNumber.Create(saleNumber),
-            SoldAt.Create(DateTimeOffset.UtcNow),
-            CustomerReference.Create("customer-1", "John Doe"),
-            BranchReference.Create("branch-1", "Main Branch"),
-            [SaleItem.Create(ProductReference.Create("product-1", "Product 1"), ItemQuantity.Create(4), Money.Create(10m, "item unit price", false))],
-            DateTimeOffset.UtcNow);
 }

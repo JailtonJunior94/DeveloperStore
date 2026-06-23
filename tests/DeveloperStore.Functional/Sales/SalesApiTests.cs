@@ -486,6 +486,83 @@ public class SalesApiTests : IClassFixture<SalesApiFactory>
         numbers.Should().BeInAscendingOrder();
     }
 
+    [Fact]
+    public async Task List_ShouldReturnEmptyData_WhenNoSalesMatchFilter()
+    {
+        var response = await _client.GetAsync("/api/sales?saleNumber=SALE-NONEXISTENT-XYZ-99999");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var payload = await response.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        payload!.Data.Should().BeEmpty();
+        payload.TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task List_ShouldFilterByStatus()
+    {
+        var created = await CreateSaleAsync("SALE-ST-001", "Customer Status", "Branch Status");
+        await _client.DeleteAsync($"/api/sales/{created.Id}");
+
+        var cancelledResponse = await _client.GetAsync("/api/sales?saleNumber=SALE-ST-001&status=Cancelled");
+        cancelledResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var cancelledPayload = await cancelledResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        cancelledPayload!.Data.Should().ContainSingle(s => s.SaleNumber == "SALE-ST-001");
+
+        var activeResponse = await _client.GetAsync("/api/sales?saleNumber=SALE-ST-001&status=NotCancelled");
+        activeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var activePayload = await activeResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        activePayload!.Data.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task List_ShouldSupportWildcardSaleNumberFilter()
+    {
+        await CreateSaleAsync("SALE-WLD-ALPHA", "Customer", "Branch");
+        await CreateSaleAsync("SALE-WLD-BETA", "Customer", "Branch");
+        await CreateSaleAsync("SALE-WLD-GAMMA", "Customer", "Branch");
+
+        var prefixResponse = await _client.GetAsync("/api/sales?saleNumber=SALE-WLD-*");
+        prefixResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var prefixPayload = await prefixResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        prefixPayload!.Data.Should().HaveCountGreaterThanOrEqualTo(3)
+            .And.OnlyContain(s => s.SaleNumber.StartsWith("SALE-WLD-"));
+
+        var suffixResponse = await _client.GetAsync("/api/sales?saleNumber=*ALPHA");
+        suffixResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var suffixPayload = await suffixResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        suffixPayload!.Data.Should().Contain(s => s.SaleNumber == "SALE-WLD-ALPHA");
+
+        var containsResponse = await _client.GetAsync("/api/sales?saleNumber=*WLD-BETA*");
+        containsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var containsPayload = await containsResponse.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        containsPayload!.Data.Should().Contain(s => s.SaleNumber == "SALE-WLD-BETA");
+    }
+
+    [Fact]
+    public async Task List_ShouldPaginate_WhenResultsSpanMultiplePages()
+    {
+        await CreateSaleAsync("SALE-PAG-001", "Customer", "Branch");
+        await CreateSaleAsync("SALE-PAG-002", "Customer", "Branch");
+        await CreateSaleAsync("SALE-PAG-003", "Customer", "Branch");
+
+        var page1Response = await _client.GetAsync("/api/sales?saleNumber=SALE-PAG-*&_page=1&_size=2&_order=saleNumber asc");
+        page1Response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page1 = await page1Response.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        page1!.Data.Should().HaveCount(2);
+        page1.PageNumber.Should().Be(1);
+        page1.TotalPages.Should().Be(2);
+        page1.TotalCount.Should().Be(3);
+
+        var page2Response = await _client.GetAsync("/api/sales?saleNumber=SALE-PAG-*&_page=2&_size=2&_order=saleNumber asc");
+        page2Response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var page2 = await page2Response.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        page2!.Data.Should().HaveCount(1);
+        page2.PageNumber.Should().Be(2);
+
+        var allNumbers = page1.Data.Concat(page2.Data).Select(s => s.SaleNumber).ToList();
+        allNumbers.Should().Contain(["SALE-PAG-001", "SALE-PAG-002", "SALE-PAG-003"]);
+    }
+
     private Task<SaleDto> CreateSaleAsync(string saleNumber, string customerName, string branchName) =>
         CreateSaleAsync(saleNumber, customerName, branchName, twoItems: false);
 

@@ -101,6 +101,41 @@ public class SalesApiPostgresTests : IClassFixture<PostgresSalesApiFactory>
     }
 
     [Fact]
+    public async Task List_ShouldFilterBySaleNumber_UsingPostgreSql()
+    {
+        await PostgresTestDatabase.ResetAsync();
+
+        await CreateSaleAsync("SALE-PG-701", "Alice Smith", "Downtown");
+        await CreateSaleAsync("SALE-PG-702", "Bob Stone", "Airport");
+        await CreateSaleAsync("SALE-OTHER-001", "Charlie Day", "North");
+
+        var response = await _client.GetAsync("/api/sales?saleNumber=SALE-PG-701");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        payload.Should().NotBeNull();
+        payload!.Data.Should().ContainSingle(sale => sale.SaleNumber == "SALE-PG-701");
+    }
+
+    [Fact]
+    public async Task List_ShouldFilterBySaleNumberWildcard_UsingPostgreSql()
+    {
+        await PostgresTestDatabase.ResetAsync();
+
+        await CreateSaleAsync("SALE-PG-WILD-001", "Alice Smith", "Downtown");
+        await CreateSaleAsync("SALE-PG-WILD-002", "Bob Stone", "Airport");
+        await CreateSaleAsync("SALE-OTHER-002", "Charlie Day", "North");
+
+        var response = await _client.GetAsync("/api/sales?saleNumber=SALE-PG-WILD-*");
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var payload = await response.Content.ReadFromJsonAsync<ApiPagedResponse<SaleSummaryDto>>(JsonOptions);
+        payload.Should().NotBeNull();
+        payload!.Data.Should().HaveCount(2);
+        payload.Data.Should().OnlyContain(sale => sale.SaleNumber.StartsWith("SALE-PG-WILD-", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Delete_ShouldCancelSale_UsingPostgreSql()
     {
         await PostgresTestDatabase.ResetAsync();

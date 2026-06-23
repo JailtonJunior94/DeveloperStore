@@ -27,9 +27,13 @@ public class DefaultContextFactory : IDesignTimeDbContextFactory<DefaultContext>
 {
     public DefaultContext CreateDbContext(string[] args)
     {
+        var basePath = ResolveConfigurationBasePath();
+
         IConfigurationRoot configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(basePath)
             .AddJsonFile("appsettings.json")
+            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddEnvironmentVariables()
             .Build();
 
         var builder = new DbContextOptionsBuilder<DefaultContext>();
@@ -37,5 +41,18 @@ public class DefaultContextFactory : IDesignTimeDbContextFactory<DefaultContext>
 
         builder.UseNpgsql(connectionString, options => options.MigrationsAssembly("DeveloperStore.ORM"));
         return new DefaultContext(builder.Options);
+    }
+
+    private static string ResolveConfigurationBasePath()
+    {
+        var currentDirectory = Directory.GetCurrentDirectory();
+        var webApiDirectory = Path.GetFullPath(Path.Combine(currentDirectory, "..", "DeveloperStore.WebApi"));
+
+        if (File.Exists(Path.Combine(webApiDirectory, "appsettings.json")))
+        {
+            return webApiDirectory;
+        }
+
+        return currentDirectory;
     }
 }

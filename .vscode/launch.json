@@ -1,0 +1,55 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "DeveloperStore.WebApi",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "debug:prepare",
+            "program": "${workspaceFolder}/src/DeveloperStore.WebApi/bin/Debug/net10.0/DeveloperStore.WebApi.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/DeveloperStore.WebApi",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ConnectionStrings__DefaultConnection": "Host=localhost;Port=5432;Database=developerstore;Username=developerstore_app;Password=developerstore_local_only",
+                "Database__ApplyMigrationsOnStartup": "true"
+            },
+            "sourceFileMap": {
+                "/src": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "DeveloperStore.WebApi (watch)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "infra:up",
+            "program": "${workspaceFolder}/src/DeveloperStore.WebApi/bin/Debug/net10.0/DeveloperStore.WebApi.dll",
+            "args": [],
+            "cwd": "${workspaceFolder}/src/DeveloperStore.WebApi",
+            "stopAtEntry": false,
+            "serverReadyAction": {
+                "action": "openExternally",
+                "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+            },
+            "env": {
+                "ASPNETCORE_ENVIRONMENT": "Development",
+                "ConnectionStrings__DefaultConnection": "Host=localhost;Port=5432;Database=developerstore;Username=developerstore_app;Password=developerstore_local_only",
+                "Database__ApplyMigrationsOnStartup": "true"
+            },
+            "sourceFileMap": {
+                "/src": "${workspaceFolder}"
+            }
+        },
+        {
+            "name": "Attach to .NET Process",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        }
+    ]
+}
