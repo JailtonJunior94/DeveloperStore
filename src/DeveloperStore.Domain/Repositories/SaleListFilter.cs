@@ -4,8 +4,8 @@ namespace DeveloperStore.Domain.Repositories;
 
 public sealed record SaleListFilter(
     string? SaleNumber,
-    string? Customer,
-    string? Branch,
+    string? CustomerName,
+    string? BranchName,
     SaleStatus? Status,
     DateTimeOffset? MinSoldAt,
     DateTimeOffset? MaxSoldAt,

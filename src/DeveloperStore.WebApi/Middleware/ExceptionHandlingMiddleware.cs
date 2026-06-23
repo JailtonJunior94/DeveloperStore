@@ -2,6 +2,8 @@ using DeveloperStore.Common.Validation;
 using DeveloperStore.Domain.Exceptions;
 using DeveloperStore.WebApi.Common;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using System.Net;
 using System.Text.Json;
 
@@ -31,6 +33,10 @@ public sealed class ExceptionHandlingMiddleware
         catch (DomainException exception)
         {
             await WriteDomainErrorAsync(context, exception);
+        }
+        catch (DbUpdateException exception) when (TryMapToDomainException(exception) is { } domainException)
+        {
+            await WriteDomainErrorAsync(context, domainException);
         }
         catch (Exception exception)
         {
@@ -62,8 +68,57 @@ public sealed class ExceptionHandlingMiddleware
             context,
             exception.StatusCode,
             exception.Code,
-            exception.Code.Replace('_', ' '),
+            exception.Title,
             exception.Message);
+    }
+
+    private static DomainException? TryMapToDomainException(DbUpdateException exception)
+    {
+        if (TryGetPostgresException(exception) is not { } postgresException)
+        {
+            return null;
+        }
+
+        if (postgresException.SqlState == PostgresErrorCodes.UniqueViolation && IsSaleNumberConstraint(postgresException))
+        {
+            return new DuplicateSaleNumberException("sale number already exists");
+        }
+
+        if (postgresException.SqlState == PostgresErrorCodes.CheckViolation)
+        {
+            return new BusinessRuleValidationException(BuildCheckViolationMessage(postgresException));
+        }
+
+        return null;
+    }
+
+    private static string BuildCheckViolationMessage(PostgresException exception) =>
+        exception.ConstraintName switch
+        {
+            "ck_sale_items_quantity_positive" => "quantity must be greater than zero",
+            "ck_sale_items_unit_price_non_neg" => "unitPrice must be non-negative",
+            "ck_sale_items_discount_range" => "discountPercentage must be between 0 and 1",
+            _ => "a database constraint was violated"
+        };
+
+    private static PostgresException? TryGetPostgresException(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is PostgresException postgresException)
+            {
+                return postgresException;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsSaleNumberConstraint(PostgresException exception)
+    {
+        return string.Equals(exception.ConstraintName, "uq_sales_sale_number", StringComparison.Ordinal) ||
+               (string.Equals(exception.TableName, "sales", StringComparison.Ordinal) &&
+                string.Equals(exception.ColumnName, "sale_number", StringComparison.Ordinal));
     }
 
     private static async Task WriteErrorAsync(

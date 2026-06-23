@@ -29,8 +29,8 @@ public sealed class CancelSaleItemHandler : IRequestHandler<CancelSaleItemComman
 
         sale.CancelItem(request.ItemId, _timeProvider.GetUtcNow());
 
-        var domainEvents = sale.DequeueDomainEvents();
         await _saleRepository.SaveChangesAsync(cancellationToken);
+        var domainEvents = sale.DequeueDomainEvents();
         await _domainEventPublisher.PublishAsync(domainEvents, cancellationToken);
 
         return sale.ToDto();

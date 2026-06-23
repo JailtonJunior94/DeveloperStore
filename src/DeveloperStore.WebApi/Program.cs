@@ -56,7 +56,14 @@ public partial class Program
             builder.Services.AddDbContext<DefaultContext>(options =>
                 options.UseNpgsql(
                     builder.Configuration.GetConnectionString("DefaultConnection"),
-                    databaseOptions => databaseOptions.MigrationsAssembly("DeveloperStore.ORM")));
+                    databaseOptions =>
+                    {
+                        databaseOptions.MigrationsAssembly("DeveloperStore.ORM");
+                        databaseOptions.EnableRetryOnFailure(
+                            maxRetryCount: 3,
+                            maxRetryDelay: TimeSpan.FromSeconds(5),
+                            errorCodesToAdd: null);
+                    }));
             builder.Services.AddHealthChecks()
                 .AddDbContextCheck<DefaultContext>("postgresql", tags: ["readiness"]);
 

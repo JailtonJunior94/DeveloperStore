@@ -137,7 +137,7 @@ Para novas demandas, assumir como nao negociavel:
 2. Sem falso positivo em validacao, testes ou diagnostico.
 3. Logs estruturados para eventos e falhas relevantes.
 4. Configuracao externa para conexoes e credenciais.
-5. Testes cobrindo caminho feliz, regras e falhas relevantes.
+5. Testes cobrindo caminho feliz, regras e falhas relevantes — incluindo todos os limites de tier (ex: quantidade=3, 9, 20 para regras de desconto).
 6. Nenhum merge com workspace quebrado, teste verde por artefato antigo ou dependencia de `bin/obj` preexistente.
 7. Readiness real deve verificar infraestrutura critica, especialmente conectividade com banco relacional.
 8. Migrations automaticas em startup sao opt-in e justificadas por ambiente; o padrao seguro e desligado.
@@ -146,6 +146,11 @@ Para novas demandas, assumir como nao negociavel:
 11. Provider `InMemory` nunca e evidencia suficiente para provar queries, filtros, ordenacao, includes, owned types, constraints ou migrations.
 12. Quando houver comportamento sensivel a traducao de LINQ, a prova canônica e o provider relacional real do projeto.
 13. Se uma limitacao do provider exigir estrategia hibrida, documentar explicitamente a decisao e preservar corretude antes de otimizar conveniencia.
+14. **Ordering obrigatório de eventos de dominio**: a sequencia correta e sempre `SaveChangesAsync` → `DequeueDomainEvents` → `PublishAsync`. Desencadear eventos antes de persistir os dados resulta em eventos permanentemente perdidos se a persistencia falhar. Nunca inverter essa ordem.
+15. **Filtros sobre owned entity properties nao traduzem via EF.Functions.Like, Contains, StartsWith, EndsWith no Npgsql**: qualquer metodo de string sobre `sale.Customer.Description` ou `sale.Branch.Description` em predicado LINQ falha com `could not be translated`. A estrategia correta e dois-fases: fase SQL para filtros em colunas proprias da entidade raiz (status, data, saleNumber), fase in-memory para filtros em propriedades de owned entities. Nao tentar resolver via EF.Property aninhado.
+16. **WHERE com `saleIds.Contains(sale.Id)` traduz corretamente; `expression.OrElse` com `.Id.Value == guid` nao traduz**: ao filtrar entidades por lista de IDs, usar `.Where(s => ids.Contains(s.Id))` onde `ids` e uma lista de tipos VO. Evitar construcao manual de Expression tree com `Expression.Constant(false)` como base de OrElse.
+17. **Codigo morto e proibido**: exceptions, metodos privados, constantes e helpers sem nenhum chamador devem ser removidos imediatamente. A presenca de codigo nao referenciado e sinal de incompleto ou refactor abandonado.
+18. **Proibido comentarios em codigo C#**: nenhum comentario de codigo, inline ou de bloco, deve ser adicionado a arquivos `.cs`. Se o motivo de uma decisao precisar ser registrado, o lugar e o AGENTS.md, nao o codigo.
 
 ## Modo de trabalho
 
@@ -211,6 +216,9 @@ Para novas demandas, assumir como nao negociavel:
    - inferencia
    - risco residual
 7. Quando houver mais de uma leitura plausivel de requisito, registrar a ambiguidade antes de concluir aderencia total.
+8. **Nao inferir que eventos de dominio foram entregues** apenas porque o handler retornou sem erro; verificar se `DequeueDomainEvents` e chamado **apos** `SaveChangesAsync` e nao antes.
+9. **Nao inferir cobertura de regra de negocio por ter ao menos um caso feliz**: limites de tier (ex: 3, 4, 9, 10, 20, 21 para descontos por quantidade) exigem casos de teste explicitos para cada fronteira, nao apenas um valor por tier.
+10. **Nao tratar warning de codigo nao referenciado como ruido**: codigo sem chamadores e sintoma de feature incompleta, refactor abandonado ou excecao de dominio sem fio. Investigar antes de ignorar.
 
 ## Regras por Linguagem
 

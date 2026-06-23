@@ -31,7 +31,7 @@ public sealed class UpdateSaleHandler : IRequestHandler<UpdateSaleCommand, SaleD
         var existingSaleByNumber = await _saleRepository.GetByNumberAsync(request.SaleNumber, cancellationToken);
         if (existingSaleByNumber is not null && existingSaleByNumber.Id != request.Id)
         {
-            throw new ConflictException($"sale number '{request.SaleNumber}' already exists");
+            throw new DuplicateSaleNumberException($"sale number '{request.SaleNumber}' already exists");
         }
 
         sale.Update(
@@ -42,8 +42,8 @@ public sealed class UpdateSaleHandler : IRequestHandler<UpdateSaleCommand, SaleD
             request.Items.Select(item => SaleItem.Create(item.Product, item.Quantity, item.UnitPrice)),
             _timeProvider.GetUtcNow());
 
-        var domainEvents = sale.DequeueDomainEvents();
         await _saleRepository.SaveChangesAsync(cancellationToken);
+        var domainEvents = sale.DequeueDomainEvents();
         await _domainEventPublisher.PublishAsync(domainEvents, cancellationToken);
 
         return sale.ToDto();

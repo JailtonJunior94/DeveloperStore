@@ -6,8 +6,8 @@ namespace DeveloperStore.Application.Sales.ListSales;
 
 public sealed record ListSalesQuery(
     string? SaleNumber,
-    string? Customer,
-    string? Branch,
+    string? CustomerName,
+    string? BranchName,
     SaleStatus? Status,
     DateTimeOffset? MinSoldAt,
     DateTimeOffset? MaxSoldAt,

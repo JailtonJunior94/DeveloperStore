@@ -18,8 +18,8 @@ public sealed class ListSalesHandler : IRequestHandler<ListSalesQuery, PagedResp
         var result = await _saleRepository.ListAsync(
             new SaleListFilter(
                 request.SaleNumber,
-                request.Customer,
-                request.Branch,
+                request.CustomerName,
+                request.BranchName,
                 request.Status,
                 request.MinSoldAt,
                 request.MaxSoldAt,

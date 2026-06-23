@@ -69,6 +69,8 @@ public sealed class SalesController : ControllerBase
     [ProducesResponseType(typeof(ApiErrorResponse), StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> ListSales(
         [FromQuery] string? saleNumber,
+        [FromQuery] string? customerName,
+        [FromQuery] string? branchName,
         [FromQuery] string? customer,
         [FromQuery] string? branch,
         [FromQuery] SaleStatus? status,
@@ -79,8 +81,11 @@ public sealed class SalesController : ControllerBase
         [FromQuery(Name = "_size")] int size = 10,
         CancellationToken cancellationToken = default)
     {
+        var resolvedCustomerName = ResolveTextFilter(customerName, customer);
+        var resolvedBranchName = ResolveTextFilter(branchName, branch);
+
         var response = await _mediator.Send(
-            new ListSalesQuery(saleNumber, customer, branch, status, minSoldAt, maxSoldAt, order, page, size),
+            new ListSalesQuery(saleNumber, resolvedCustomerName, resolvedBranchName, status, minSoldAt, maxSoldAt, order, page, size),
             cancellationToken);
 
         return JsonContent(HttpStatusCode.OK, new ApiPagedResponse<SaleSummaryDto>(
@@ -202,5 +207,12 @@ public sealed class SalesController : ControllerBase
         {
             ErrorCode = code
         }]);
+    }
+
+    private static string? ResolveTextFilter(string? canonicalValue, string? legacyAliasValue)
+    {
+        return string.IsNullOrWhiteSpace(canonicalValue)
+            ? legacyAliasValue
+            : canonicalValue;
     }
 }

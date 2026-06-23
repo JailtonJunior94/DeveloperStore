@@ -9,10 +9,16 @@ public sealed class SaleItemConfiguration : IEntityTypeConfiguration<SaleItem>
 {
     public void Configure(EntityTypeBuilder<SaleItem> builder)
     {
-        builder.ToTable("sale_items");
+        builder.ToTable("sale_items", table =>
+        {
+            table.HasCheckConstraint("ck_sale_items_quantity_positive", "quantity > 0");
+            table.HasCheckConstraint("ck_sale_items_unit_price_non_neg", "unit_price >= 0");
+            table.HasCheckConstraint("ck_sale_items_discount_range", "discount_percentage >= 0 AND discount_percentage <= 1");
+        });
 
-        builder.HasKey(item => item.Id);
+        builder.HasKey(item => item.Id).HasName("pk_sale_items");
         builder.Property(item => item.Id)
+            .HasColumnName("id")
             .HasConversion(value => value.Value, value => SaleItemId.Create(value))
             .ValueGeneratedNever();
         builder.Property(item => item.SaleId)
@@ -45,6 +51,8 @@ public sealed class SaleItemConfiguration : IEntityTypeConfiguration<SaleItem>
             .HasColumnName("total_amount")
             .HasPrecision(18, 2);
         builder.Property(item => item.IsCancelled).HasColumnName("is_cancelled").IsRequired();
+
+        builder.HasIndex(item => item.SaleId).HasDatabaseName("idx_sale_items_sale_id");
     }
 
     private static DiscountRate MapDiscountRate(decimal value)

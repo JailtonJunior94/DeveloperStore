@@ -27,7 +27,7 @@ public sealed class CreateSaleHandler : IRequestHandler<CreateSaleCommand, SaleD
     {
         if (await _saleRepository.ExistsByNumberAsync(request.SaleNumber, cancellationToken))
         {
-            throw new ConflictException($"sale number '{request.SaleNumber}' already exists");
+            throw new DuplicateSaleNumberException($"sale number '{request.SaleNumber}' already exists");
         }
 
         var sale = Sale.Create(
@@ -39,8 +39,8 @@ public sealed class CreateSaleHandler : IRequestHandler<CreateSaleCommand, SaleD
             _timeProvider.GetUtcNow());
 
         await _saleRepository.AddAsync(sale, cancellationToken);
-        var domainEvents = sale.DequeueDomainEvents();
         await _saleRepository.SaveChangesAsync(cancellationToken);
+        var domainEvents = sale.DequeueDomainEvents();
         await _domainEventPublisher.PublishAsync(domainEvents, cancellationToken);
 
         return sale.ToDto();

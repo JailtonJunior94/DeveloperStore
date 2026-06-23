@@ -43,6 +43,11 @@ public sealed class CreateSaleValidator : ApiValidator<CreateSaleCommand>
             .WithErrorCode("items_required")
             .WithMessage("items must contain at least one item");
 
+        RuleFor(command => command.Items)
+            .Must(items => items is null || items.GroupBy(i => i.Product.Id, StringComparer.OrdinalIgnoreCase).All(g => g.Count() == 1))
+            .WithErrorCode("duplicate_product_in_sale")
+            .WithMessage("each product must appear at most once per sale");
+
         RuleForEach(command => command.Items).SetValidator(new SaleItemInputValidator());
     }
 }

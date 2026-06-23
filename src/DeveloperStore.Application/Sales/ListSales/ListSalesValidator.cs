@@ -21,6 +21,11 @@ public sealed class ListSalesValidator : ApiValidator<ListSalesQuery>
             .Must(BeAValidOrderExpression)
             .WithErrorCode("order_invalid")
             .WithMessage("_order must use supported fields: saleNumber, soldAt, customerName, branchName, totalAmount, status or itemCount");
+
+        RuleFor(query => query)
+            .Must(q => !q.MinSoldAt.HasValue || !q.MaxSoldAt.HasValue || q.MinSoldAt <= q.MaxSoldAt)
+            .WithErrorCode("sold_at_range_invalid")
+            .WithMessage("_minSoldAt must not be greater than _maxSoldAt");
     }
 
     private static bool BeAValidOrderExpression(string? order)

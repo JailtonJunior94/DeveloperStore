@@ -185,18 +185,23 @@ GET /api/sales?_page=1&_size=10&_order=soldAt desc, saleNumber asc
 ### Filtros suportados
 
 - `saleNumber`
-- `customer`
-- `branch`
+- `customerName`
+- `branchName`
 - `status`
 - `_minSoldAt`
 - `_maxSoldAt`
+
+Compatibilidade temporária:
+
+- `customer` continua aceito como alias legado de `customerName`
+- `branch` continua aceito como alias legado de `branchName`
 
 ### Semântica de filtros de texto
 
 - `saleNumber=SALE-123`: match exato
 - `saleNumber=SALE*`: prefixo
-- `customer=*Silva`: sufixo
-- `branch=*Center*`: contains
+- `customerName=*Silva`: sufixo
+- `branchName=*Center*`: contains
 
 ## Erros da API
 

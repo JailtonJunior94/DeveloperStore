@@ -106,9 +106,20 @@ public sealed class Sale : BaseEntity<SaleId>
         var item = _items.SingleOrDefault(current => current.Id == itemId)
             ?? throw new NotFoundException($"sale item '{itemId}' was not found");
 
+        if (item.IsCancelled)
+        {
+            return;
+        }
+
         item.Cancel();
         RecalculateTotalAmount();
         RecordEvent(new ItemCancelledEvent(Id, itemId, SaleNumber, occurredOn));
+
+        if (_items.All(current => current.IsCancelled))
+        {
+            Status = SaleStatus.Cancelled;
+            RecordEvent(new SaleCancelledEvent(Id, SaleNumber, occurredOn));
+        }
     }
 
     public IReadOnlyCollection<IDomainEvent> DequeueDomainEvents()
@@ -124,6 +135,17 @@ public sealed class Sale : BaseEntity<SaleId>
         if (materializedItems.Length == 0)
         {
             throw new BusinessRuleValidationException("a sale must contain at least one item");
+        }
+
+        var duplicateProductIds = materializedItems
+            .GroupBy(item => item.Product.Id, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToArray();
+
+        if (duplicateProductIds.Length > 0)
+        {
+            throw new BusinessRuleValidationException("a sale cannot contain duplicate products");
         }
 
         _items.Clear();
@@ -148,7 +170,7 @@ public sealed class Sale : BaseEntity<SaleId>
     {
         if (Status == SaleStatus.Cancelled)
         {
-            throw new BusinessRuleValidationException("cancelled sales cannot be changed");
+            throw new SaleStateConflictException("cancelled sales cannot be changed");
         }
     }
 
