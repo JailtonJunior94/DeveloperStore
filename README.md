@@ -30,6 +30,32 @@ Cada venda armazena:
 - total consolidado da venda
 - status da venda
 
+## Escopo implementado
+
+O escopo implementado neste repositório é `Sales API`.
+
+Isso significa que a solução entregue cobre o domínio de vendas e suas evidências técnicas correspondentes:
+
+- domínio de vendas
+- endpoints de vendas
+- persistência de vendas
+- testes de vendas
+
+Arquivos em `.doc` que descrevem `auth`, `users`, `products` e `carts` devem ser lidos como documentação de referência mais ampla da plataforma, não como prova automática de que esses módulos existem neste repositório.
+
+## Como interpretar prontidão e evidência
+
+Neste projeto, uma afirmação de prontidão só é considerada válida quando existe evidência objetiva executada sobre o estado atual do código.
+
+Na prática, isso significa:
+
+- build limpo
+- testes relevantes verdes
+- prova em PostgreSQL real para comportamento sensível a persistência
+- documentação coerente com o comportamento efetivamente implementado
+
+Teste em memória ajuda, mas não é prova suficiente para consultas, ordenação, filtros, tradução de LINQ, constraints ou migrations.
+
 ## Objetivo deste projeto no teste técnico
 
 Este projeto foi desenhado para demonstrar:
@@ -309,6 +335,19 @@ dotnet format DeveloperStore.slnx --verify-no-changes
 - listagem com paginação, ordenação e filtros
 - cancelamento de venda e cancelamento de item
 
+## Evidências executadas na entrega
+
+As seguintes validações são as evidências principais de que a solução está operacional no escopo de `sales`:
+
+```bash
+dotnet build DeveloperStore.slnx --no-restore
+dotnet test tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj --no-restore
+dotnet test tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj --no-restore
+dotnet test tests/DeveloperStore.Functional/DeveloperStore.Functional.csproj --no-restore
+./scripts/validate-postgres.sh
+dotnet format DeveloperStore.slnx --verify-no-changes
+```
+
 ## Exemplo de criação de venda
 
 ```json
@@ -343,3 +382,4 @@ dotnet format DeveloperStore.slnx --verify-no-changes
 - há validação semântica em borda e invariantes no núcleo do domínio
 - a solução possui evidência automatizada em memória e em banco real
 - a documentação foi atualizada para refletir o comportamento efetivamente implementado
+- aderência literal a toda a pasta `.doc` não deve ser inferida sem confronto específico com cada contrato e com o escopo material deste repositório

@@ -9,14 +9,17 @@ Use estas instrucoes para manter consistencia, seguranca e qualidade ao trabalha
 
 ## Arquitetura: monolito
 
-O projeto e um monolito backend em camadas. A governanca deve privilegiar coesao local, limites de pacote claros e crescimento incremental da estrutura.
+O projeto e um monolito backend em camadas, orientado a dominio e exposto por HTTP. A governanca deve privilegiar coesao local, limites de pacote claros, baixo acoplamento entre camadas e crescimento incremental da estrutura sem inflar a solucao com abstracoes desnecessarias.
 
 Stack detectada:
 
 - Backend: `ASP.NET Core Web API`
-- Linguagem: `C# / .NET`
+- Linguagem: `C# 14 / .NET 10`
 - Persistencia: `EF Core + PostgreSQL`
 - Testes: `xUnit`
+- Validacao: `FluentValidation`
+- Mediacao: `MediatR`
+- Observabilidade: `Serilog`
 
 ## Estrutura de Pastas
 
@@ -34,6 +37,7 @@ Stack detectada:
 ├── tests
 │   ├── DeveloperStore.Functional
 │   ├── DeveloperStore.Integration
+│   ├── DeveloperStore.Postgres
 │   └── DeveloperStore.Unit
 └── README.md
 ```
@@ -47,6 +51,17 @@ Padrao arquitetural adotado:
 - `ORM` implementa persistencia e mapeamentos EF Core.
 - `WebApi` traduz HTTP para casos de uso e devolve contratos de API.
 - `IoC` faz wiring explicito.
+- `Common` concentra validacao transversal, logging e health checks.
+
+### Estilo Arquitetural
+
+Este repositorio deve evoluir como:
+
+1. `DDD pragmatico`, com aggregate root, VOs e exceptions de dominio.
+2. `application services thin`, sem logica central de negocio em handlers.
+3. `persistence ignorant enough`, aceitando compromissos controlados de ORM sem deixar o modelo ser guiado pela infraestrutura.
+4. `API first at the edge`, com requests/responses claros, status HTTP coerentes e erro semantico uniforme.
+5. `production proof`, com evidencia real de comportamento em provider relacional.
 
 ### Fluxo de Dependencias
 
@@ -55,6 +70,15 @@ Padrao arquitetural adotado:
 - `WebApi -> Application -> Domain`
 - `ORM -> Domain`
 - `IoC -> Application/ORM/Common/Domain`
+- `Common` pode ser consumido por `Application`, `IoC` e `WebApi` apenas para preocupacoes transversais.
+
+### Fronteiras Mandatorias
+
+1. `Domain` nao referencia `ASP.NET`, `EF Core`, `Serilog` ou detalhes de transporte.
+2. `Application` nao implementa regra de negocio central que deveria viver no aggregate.
+3. `WebApi` nao calcula desconto, nao recalcula total e nao decide transicoes de estado.
+4. `ORM` nao inventa regra de negocio; apenas persiste, consulta e traduz limites do provider.
+5. `IoC` nao contem logica de negocio.
 
 ## Regras Mandatorias Deste Projeto
 
@@ -73,6 +97,7 @@ Aplicar obrigatoriamente:
 7. Se for necessario usar primitivo por restricao de framework ou persistencia, manter isso na borda e justificar explicitamente.
 8. O estado canônico de aggregates e entities deve preferir tipos semânticos; campos escalares de suporte ao ORM sao excecao e nao devem vazar como API do dominio.
 9. `ExternalReference` generico so e aceitavel quando houver justificativa explicita de impossibilidade de especializacao por contexto.
+10. Sempre avaliar se o conceito pede `VO`, `enum`, `aggregate`, `domain event` ou `exception` especifica antes de usar um tipo generico.
 
 ### Tipos Primitivos
 
@@ -100,6 +125,9 @@ As seguintes regras sao obrigatorias para endpoints e casos de uso:
 10. IDs e query params malformados devem falhar como erro semantico de validacao, nao como `404` de recurso inexistente.
 11. Para endpoints de listagem, seguir primeiro o contrato documentado em `.doc/general-api.md` quando houver conflito com implementacao anterior.
 12. O payload minimo de erro para APIs deste projeto deve preservar `type`, `error` e `detail`; metadados adicionais sao permitidos apenas sem quebrar esse shape base.
+13. `ApiController`, model binding, validators e middleware devem convergir para um unico contrato de erro observavel pelo cliente.
+14. Qualquer mudanca em shape de erro, codigos, status HTTP ou semantica de query string exige teste funcional.
+15. Falha de validacao na borda nao deve chegar ao repositório nem ao aggregate.
 
 ### Robustez e Production-Ready
 
@@ -115,6 +143,9 @@ Para novas demandas, assumir como nao negociavel:
 8. Migrations automaticas em startup sao opt-in e justificadas por ambiente; o padrao seguro e desligado.
 9. Segredos reais nao podem ser versionados; apenas placeholders ou valores explicitamente locais.
 10. Toda alegacao de “pronto para main” exige evidencia objetiva e atual: build limpo, testes relevantes verdes e sem warning critico conhecido.
+11. Provider `InMemory` nunca e evidencia suficiente para provar queries, filtros, ordenacao, includes, owned types, constraints ou migrations.
+12. Quando houver comportamento sensivel a traducao de LINQ, a prova canônica e o provider relacional real do projeto.
+13. Se uma limitacao do provider exigir estrategia hibrida, documentar explicitamente a decisao e preservar corretude antes de otimizar conveniencia.
 
 ## Modo de trabalho
 
@@ -138,6 +169,48 @@ Para novas demandas, assumir como nao negociavel:
 8. Foreign keys tecnicas nao devem fazer parte do modelo ubíquo do dominio salvo justificativa arquitetural explicita.
 9. Se um VO for adotado no fluxo interno, a migracao deve ser concluida ponta a ponta no mesmo escopo: dominio, aplicacao, ORM, API e testes.
 10. `ExternalReference` ou equivalente generico deve ser reavaliado sempre que cliente, filial e produto exigirem semantica distinta em compilacao.
+11. Para listagens, preferir `read models/projections` especificos quando isso reduzir fragilidade de traducao sem empobrecer o dominio.
+12. Nao acoplar consultas de listagem ao aggregate completo quando uma projecao controlada for suficiente para paginação, ordenação ou filtro.
+13. Quando filtros por owned types, value converters ou members calculados degradarem traducao SQL, isolar o problema em estrategia explicita e testada.
+
+## Regras Especificas de Persistencia
+
+1. Toda query de repositório deve ser pensada para o provider real, nao apenas para `InMemory`.
+2. `Include`, `AutoInclude`, filtros em owned types, `Contains`, ordenacao e paginação devem ser tratados como pontos de risco de traducao.
+3. Antes de afirmar que uma query esta correta, validar se ela:
+   - compila
+   - traduz em SQL no provider relacional
+   - retorna os dados esperados
+4. Quando necessario, dividir consultas em duas fases:
+   - fase relacional para reduzir universo
+   - fase em memoria apenas sobre subconjunto controlado e justificado
+5. Toda estrategia hibrida deve ser deterministica, testada e proporcional ao risco.
+6. Nao usar workaround de provider sem registrar o motivo em comentario curto quando o codigo nao for autoexplicativo.
+7. Migrations e snapshot do EF devem acompanhar mudancas de modelo persistido no mesmo commit.
+
+## Regras de Documentacao e Escopo
+
+1. `README.md` deve refletir o comportamento real atual da aplicacao, nao o plano antigo nem o template herdado.
+2. Sempre que endpoint, filtro, shape de erro, setup ou validacao mudarem, revisar o `README.md`.
+3. Nao afirmar aderencia total a `.doc` sem confrontar o estado atual do codigo com os arquivos relevantes.
+4. Quando a `.doc` misturar contratos fora do escopo material do repositorio, registrar explicitamente a diferenca entre:
+   - aderencia literal ao documento
+   - aderencia ao escopo implementado
+5. Se houver conflito entre instrucoes do usuario e a `.doc`, explicitar a decisao e a perda assumida.
+6. Mensagens de commit, PR e README devem evitar inflar conclusoes; declarar apenas o que foi efetivamente provado.
+
+## Regras Anti-Alucinacao
+
+1. Nao declarar “production-ready”, “main-ready”, “100% aderente”, “sem falso positivo” ou equivalente sem evidencia executada na sessao atual.
+2. Nao inferir que um comportamento funciona em PostgreSQL porque funcionou em `InMemory`.
+3. Nao inferir que a documentacao esta correta porque o nome parece coerente; confrontar com codigo e testes.
+4. Nao inferir que o escopo inclui tudo em `.doc`; verificar se o repositorio, README, controllers e testes realmente cobrem aquilo.
+5. Nao usar resultado de comando antigo como prova apos refactor estrutural, alteracao de contrato ou mudanca de provider.
+6. Quando uma afirmacao depender de interpretacao, separar explicitamente:
+   - fato observado
+   - inferencia
+   - risco residual
+7. Quando houver mais de uma leitura plausivel de requisito, registrar a ambiguidade antes de concluir aderencia total.
 
 ## Regras por Linguagem
 
@@ -201,6 +274,8 @@ Adicionalmente neste projeto:
 5. Nao considerar valido teste executado com `--no-build` como evidencia unica apos refactor estrutural.
 6. Se alterar persistencia, validar tambem comportamento com provider relacional real quando houver impacto de traducao, ordenacao, filtros, constraints ou migrations.
 7. Se alterar health checks, configuracao ou bootstrap, validar readiness/liveness e politica de migracao explicitamente.
+8. Se alterar `README.md` ou contrato de uso, validar se a documentacao continua consistente com endpoints, defaults e exemplos reais.
+9. Ao concluir, preferir reportar tambem riscos residuais conhecidos, especialmente quando houver divergencia nao resolvida com `.doc`.
 
 ## Restricoes
 
@@ -211,6 +286,8 @@ Adicionalmente neste projeto:
 5. Nao flexibilizar regras de modelagem para “agilizar” quando isso degradar o dominio.
 6. Nao declarar aderencia total ao `.doc` quando houver conflito conhecido nao resolvido entre stack, contrato HTTP ou frameworks listados.
 7. Quando houver conflito entre instrucoes de usuario e `.doc`, registrar explicitamente o conflito e a decisao tomada.
+8. Nao apagar ou mascarar sinais de risco tecnico no texto final apenas para parecer pronto.
+9. Nao tratar template legado como prova de requisito implementado; considerar apenas codigo, testes e documentacao atuais.
 
 ### Controle de profundidade de invocacao
 
