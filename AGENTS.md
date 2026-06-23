@@ -1,0 +1,219 @@
+<!-- governance-schema: 1.0.0 -->
+# Regras para Agentes de IA
+
+Este diretorio centraliza regras para uso com agentes de IA em tarefas reais de analise, alteracao e validacao de codigo.
+
+## Objetivo
+
+Use estas instrucoes para manter consistencia, seguranca e qualidade ao trabalhar com codigo, configuracao, validacao e evolucao de sistemas.
+
+## Arquitetura: monolito
+
+O projeto e um monolito backend em camadas. A governanca deve privilegiar coesao local, limites de pacote claros e crescimento incremental da estrutura.
+
+Stack detectada:
+
+- Backend: `ASP.NET Core Web API`
+- Linguagem: `C# / .NET`
+- Persistencia: `EF Core + PostgreSQL`
+- Testes: `xUnit`
+
+## Estrutura de Pastas
+
+```text
+.
+├── .doc
+├── .specs
+├── src
+│   ├── DeveloperStore.Application
+│   ├── DeveloperStore.Common
+│   ├── DeveloperStore.Domain
+│   ├── DeveloperStore.IoC
+│   ├── DeveloperStore.ORM
+│   └── DeveloperStore.WebApi
+├── tests
+│   ├── DeveloperStore.Functional
+│   ├── DeveloperStore.Integration
+│   └── DeveloperStore.Unit
+└── README.md
+```
+
+## Padrao Arquitetural
+
+Padrao arquitetural adotado:
+
+- `Domain` concentra modelo ubíquo, invariantes, transicoes e eventos.
+- `Application` orquestra casos de uso e nao carrega regra de negocio central.
+- `ORM` implementa persistencia e mapeamentos EF Core.
+- `WebApi` traduz HTTP para casos de uso e devolve contratos de API.
+- `IoC` faz wiring explicito.
+
+### Fluxo de Dependencias
+
+- Dependencias devem apontar de bordas externas para o nucleo do negocio.
+- Detalhes de framework, IO e persistencia nao devem vazar para o centro do sistema.
+- `WebApi -> Application -> Domain`
+- `ORM -> Domain`
+- `IoC -> Application/ORM/Common/Domain`
+
+## Regras Mandatorias Deste Projeto
+
+### Domain Modeling Made Functional
+
+Para alteracoes no dominio, o livro `Domain Modeling Made Functional: Tackle Software Complexity with Domain-Driven Design and F#` e referencia obrigatoria de modelagem.
+
+Aplicar obrigatoriamente:
+
+1. Modelar conceitos de negocio com tipos explicitos e semanticamente nomeados.
+2. Evitar primitive obsession no dominio e, sempre que viavel, na aplicacao.
+3. Usar smart constructors ou factories que protejam invariantes.
+4. Concentrar transicoes de estado no aggregate root.
+5. Tratar regras de negocio como comportamento do dominio, nao como if espalhado em handlers, controllers ou repositories.
+6. Representar identidades externas e descricoes desnormalizadas com tipos explicitos.
+7. Se for necessario usar primitivo por restricao de framework ou persistencia, manter isso na borda e justificar explicitamente.
+8. O estado canônico de aggregates e entities deve preferir tipos semânticos; campos escalares de suporte ao ORM sao excecao e nao devem vazar como API do dominio.
+9. `ExternalReference` generico so e aceitavel quando houver justificativa explicita de impossibilidade de especializacao por contexto.
+
+### Tipos Primitivos
+
+As seguintes diretrizes sao obrigatorias:
+
+1. Nao introduzir `string`, `int`, `decimal`, `Guid`, `DateTime` ou `DateTimeOffset` crus no dominio para representar conceitos de negocio sem avaliar VO dedicado.
+2. `Money`, `Quantity`, `SaleNumber`, ids, nomes, status e referencias externas devem preferir tipos semanticamente ricos.
+3. DTOs e requests HTTP podem usar primitivos na borda, mas devem ser convertidos cedo para tipos de dominio ou tipos de aplicacao semanticamente nomeados.
+4. Qualquer propriedade `*Value`, `*Id`, `*Name`, `*Amount`, `*Date` ou equivalente exposta como primitivo no dominio deve ser tratada como smell e exigir justificativa explicita.
+5. Tipos monetarios e quantitativos devem concentrar arredondamento, comparacao e operacoes; nao espalhar `decimal.Round`, limites e calculos pelo dominio.
+
+### Validacao e API
+
+As seguintes regras sao obrigatorias para endpoints e casos de uso:
+
+1. Validar o mais cedo possivel, antes de executar regra de negocio ou persistencia.
+2. Validacao deve ser fail fast por etapa: se a fronteira de validacao falhar, o fluxo deve parar imediatamente.
+3. A resposta de erro da API deve ser semantica, consistente e orientada ao consumidor.
+4. Erros de validacao devem retornar lista de erros com ao menos `code`, `field` e `message`.
+5. Erros de dominio devem ter `code` estavel e status HTTP coerente.
+6. Nao retornar mensagens vagas como `something went wrong`.
+7. Nao expor stack trace ao cliente.
+8. Requests HTTP podem receber primitivos, mas a conversao para tipos semanticos deve ocorrer antes de construir comandos ou entrar na regra de negocio.
+9. Comandos da aplicacao nao devem ser meros espelhos do payload HTTP quando o dominio tiver tipos explicitos equivalentes.
+10. IDs e query params malformados devem falhar como erro semantico de validacao, nao como `404` de recurso inexistente.
+11. Para endpoints de listagem, seguir primeiro o contrato documentado em `.doc/general-api.md` quando houver conflito com implementacao anterior.
+12. O payload minimo de erro para APIs deste projeto deve preservar `type`, `error` e `detail`; metadados adicionais sao permitidos apenas sem quebrar esse shape base.
+
+### Robustez e Production-Ready
+
+Para novas demandas, assumir como nao negociavel:
+
+1. Foco em robustez antes de conveniencia.
+2. Sem falso positivo em validacao, testes ou diagnostico.
+3. Logs estruturados para eventos e falhas relevantes.
+4. Configuracao externa para conexoes e credenciais.
+5. Testes cobrindo caminho feliz, regras e falhas relevantes.
+6. Nenhum merge com workspace quebrado, teste verde por artefato antigo ou dependencia de `bin/obj` preexistente.
+7. Readiness real deve verificar infraestrutura critica, especialmente conectividade com banco relacional.
+8. Migrations automaticas em startup sao opt-in e justificadas por ambiente; o padrao seguro e desligado.
+9. Segredos reais nao podem ser versionados; apenas placeholders ou valores explicitamente locais.
+10. Toda alegacao de “pronto para main” exige evidencia objetiva e atual: build limpo, testes relevantes verdes e sem warning critico conhecido.
+
+## Modo de trabalho
+
+1. Entender o contexto antes de editar qualquer arquivo.
+2. Preferir a menor mudanca segura que resolva a causa raiz.
+3. Preservar arquitetura, convencoes e fronteiras ja existentes no contexto analisado.
+4. Nao introduzir abstracoes, camadas ou dependencias sem demanda concreta.
+5. Atualizar ou adicionar testes quando houver mudanca de comportamento.
+6. Rodar validacoes proporcionais a mudanca.
+7. Registrar bloqueios e suposicoes explicitamente quando o contexto estiver incompleto.
+
+## Regras por Arquitetura
+
+1. Preservar coesao local e dependencia unidirecional entre packages.
+2. Evitar helpers transversais que escondam regra de negocio ou IO.
+3. Crescer a estrutura apenas quando o codigo atual ja nao comportar a mudanca com clareza.
+4. Nao mover regra de negocio para controller, middleware, mapper ou repository.
+5. Repository deve expor operacoes de dominio, nao detalhes de SQL.
+6. Repositories do dominio nao devem expor primitvos crus para ids, numeros, datas de negocio, filtros ou paginação sem avaliacao explicita de tipos semanticamente ricos.
+7. Eventos de dominio devem preferir tipos de dominio ou payloads semanticamente nomeados; `Guid` e `string` crus sao excecao justificada.
+8. Foreign keys tecnicas nao devem fazer parte do modelo ubíquo do dominio salvo justificativa arquitetural explicita.
+9. Se um VO for adotado no fluxo interno, a migracao deve ser concluida ponta a ponta no mesmo escopo: dominio, aplicacao, ORM, API e testes.
+10. `ExternalReference` ou equivalente generico deve ser reavaliado sempre que cliente, filial e produto exigirem semantica distinta em compilacao.
+
+## Regras por Linguagem
+
+Para tarefas que alteram codigo, carregar a skill:
+
+- `.agents/skills/agent-governance/SKILL.md`
+
+Para tarefas de correcao de bugs com remediacao e teste de regressao, carregar tambem:
+
+- `.agents/skills/bugfix/SKILL.md`
+
+## Referencias
+
+Cada skill lista suas proprias referencias em `references/` com gatilhos de carregamento no respectivo `SKILL.md`. Nao duplicar a listagem aqui — consultar o SKILL.md da skill ativa para saber quais referencias carregar e em que condicao.
+
+## Notas por Ferramenta
+
+- **Claude Code**: skills pre-carregadas via `.claude/skills/`, hooks via `.claude/hooks/`, agents delegados via `.claude/agents/`.
+- **Gemini CLI**: commands em `.gemini/commands/*.toml` apontam para skills canonicas. Sem hooks ou agents nativos — o modelo deve seguir as instrucoes procedurais do SKILL.md carregado.
+- **Codex**: le `AGENTS.md` como instrucao de sessao. Entradas em `.codex/config.toml` sao metadados para `upgrade.sh`, nao spec oficial do Codex CLI. O agente deve seguir as instrucoes de `AGENTS.md` para descobrir e carregar skills.
+- **Copilot**: `.github/copilot-instructions.md` como instrucao principal. `.github/agents/` sao wrappers. Sem hooks nativos — compliance depende do modelo seguir as instrucoes.
+
+### Matrix de Enforcement
+
+| Capacidade | Claude Code | Gemini CLI | Codex | Copilot |
+|---|---|---|---|---|
+| Carga base automatica | hook PreToolUse | procedural | procedural | procedural |
+| Protecao de governanca | hook PostToolUse | procedural | procedural | procedural |
+| Skills pre-carregadas | sim (symlinks) | sim (commands) | nao | sim (agents) |
+| Enforcement programatico | sim (hooks) | nao | nao | nao |
+| Validacao de evidencias | script | procedural | procedural | procedural |
+
+Ferramentas sem enforcement programatico dependem do modelo seguir instrucoes procedurais. A compliance nessas ferramentas e best-effort.
+
+## Economia de Contexto
+
+Carregar o minimo necessario para a tarefa reduz custo de tokens em 35-50%:
+
+| Complexidade | Criterio | O que carregar |
+|---|---|---|
+| `trivial` | Rename, typo, import, formatacao | Apenas AGENTS.md |
+| `standard` | Bug fix, novo metodo, refactor local | AGENTS.md + TL;DR das references afetadas |
+| `complex` | Nova feature, interface publica, migracao | AGENTS.md + referencias completas |
+
+- Classificar a complexidade **antes** de carregar qualquer referencia.
+- Quando a reference tiver bloco `<!-- TL;DR ... -->`, preferir o TL;DR ao documento completo em tarefas standard.
+- Override explicito via `--complexity=<nivel>` prevalece sobre classificacao automatica.
+
+## Validacao
+
+Antes de concluir uma alteracao:
+
+Seguir Etapa 4 de `.agents/skills/agent-governance/SKILL.md` como base canonica.
+
+Adicionalmente neste projeto:
+
+1. Sempre rodar `dotnet build` para alteracoes de codigo.
+2. Rodar ao menos a suite de testes diretamente afetada.
+3. Se alterar PRDs em `.specs`, rodar `ai-spec sync-spec-hash` e `ai-spec check-spec-drift`.
+4. Se alterar contrato HTTP, validar payloads de erro e sucesso.
+5. Nao considerar valido teste executado com `--no-build` como evidencia unica apos refactor estrutural.
+6. Se alterar persistencia, validar tambem comportamento com provider relacional real quando houver impacto de traducao, ordenacao, filtros, constraints ou migrations.
+7. Se alterar health checks, configuracao ou bootstrap, validar readiness/liveness e politica de migracao explicitamente.
+
+## Restricoes
+
+1. Nao inventar contexto ausente.
+2. Nao assumir versao de linguagem, framework ou runtime sem verificar.
+3. Nao alterar comportamento publico sem deixar isso explicito.
+4. Nao usar exemplos como copia cega; adaptar ao contexto real.
+5. Nao flexibilizar regras de modelagem para “agilizar” quando isso degradar o dominio.
+6. Nao declarar aderencia total ao `.doc` quando houver conflito conhecido nao resolvido entre stack, contrato HTTP ou frameworks listados.
+7. Quando houver conflito entre instrucoes de usuario e `.doc`, registrar explicitamente o conflito e a decisao tomada.
+
+### Controle de profundidade de invocacao
+
+- Skills que invocam outros skills (execute-task, refactor) devem verificar profundidade via `scripts/lib/check-invocation-depth.sh`.
+- Limite padrao: 2 niveis. Configuravel via `AI_INVOCATION_MAX`.
+- Variaveis de ambiente: `AI_INVOCATION_DEPTH` (corrente), `AI_INVOCATION_MAX` (limite).

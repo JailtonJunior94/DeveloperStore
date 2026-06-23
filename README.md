@@ -1,77 +1,345 @@
-# Developer Evaluation Project
+# DeveloperStore Sales API
 
-`READ CAREFULLY`
+API de vendas construída para o teste técnico da DeveloperStore, com foco em robustez, DDD, validação semântica, contratos HTTP consistentes e modelagem inspirada em `Domain Modeling Made Functional`.
 
-## Use Case
-**You are a developer on the DeveloperStore team. Now we need to implement the API prototypes.**
+Repositório público: `https://github.com/JailtonJunior94/DeveloperStore`
 
-As we work with `DDD`, to reference entities from other domains, we use the `External Identities` pattern with denormalization of entity descriptions.
+## O que foi construído
 
-Therefore, you will write an API (complete CRUD) that handles sales records. The API needs to be able to inform:
+Foi implementada uma API completa para gerenciamento de vendas, cobrindo:
 
-* Sale number
-* Date when the sale was made
-* Customer
-* Total sale amount
-* Branch where the sale was made
-* Products
-* Quantities
-* Unit prices
-* Discounts
-* Total amount for each item
-* Cancelled/Not Cancelled
+- criação de venda
+- consulta de venda por id
+- listagem paginada com filtros e ordenação
+- atualização de venda
+- cancelamento lógico de venda
+- cancelamento de item de venda
+- publicação de eventos de domínio via log
 
-It's not mandatory, but it would be a differential to build code for publishing events of:
-* SaleCreated
-* SaleModified
-* SaleCancelled
-* ItemCancelled
+Cada venda armazena:
 
-If you write the code, **it's not required** to actually publish to any Message Broker. You can log a message in the application log or however you find most convenient.
+- número da venda
+- data da venda
+- cliente
+- filial
+- itens vendidos
+- quantidade por item
+- preço unitário
+- desconto aplicado
+- total por item
+- total consolidado da venda
+- status da venda
 
-### Business Rules
+## Objetivo deste projeto no teste técnico
 
-* Purchases above 4 identical items have a 10% discount
-* Purchases between 10 and 20 identical items have a 20% discount
-* It's not possible to sell above 20 identical items
-* Purchases below 4 items cannot have a discount
+Este projeto foi desenhado para demonstrar:
 
-These business rules define quantity-based discounting tiers and limitations:
+- domínio explícito e semântico, evitando obsessão por tipos primitivos no núcleo do negócio
+- separação clara entre `Domain`, `Application`, `ORM`, `IoC`, `Common` e `WebApi`
+- validação fail-fast com retorno de lista semântica de erros para o cliente
+- regras de desconto implementadas no domínio, não espalhadas em controllers ou infraestrutura
+- aderência forte a testes automatizados em múltiplos níveis
+- prova real com PostgreSQL, e não apenas testes em memória
 
-1. Discount Tiers:
-   - 4+ items: 10% discount
-   - 10-20 items: 20% discount
+## Stack utilizada
 
-2. Restrictions:
-   - Maximum limit: 20 items per product
-   - No discounts allowed for quantities below 4 items
+- `.NET 10`
+- `C# 14`
+- `ASP.NET Core Web API`
+- `MediatR`
+- `FluentValidation`
+- `Entity Framework Core`
+- `PostgreSQL`
+- `xUnit`
+- `FluentAssertions`
+- `NSubstitute`
+- `Serilog`
 
-## Overview
-This section provides a high-level overview of the project and the various skills and competencies it aims to assess for developer candidates. 
+## Arquitetura
 
-See [Overview](/.doc/overview.md)
+```text
+.
+├── src
+│   ├── DeveloperStore.Domain
+│   ├── DeveloperStore.Application
+│   ├── DeveloperStore.ORM
+│   ├── DeveloperStore.IoC
+│   ├── DeveloperStore.Common
+│   └── DeveloperStore.WebApi
+├── tests
+│   ├── DeveloperStore.Unit
+│   ├── DeveloperStore.Integration
+│   ├── DeveloperStore.Functional
+│   └── DeveloperStore.Postgres
+├── scripts
+└── README.md
+```
 
-## Tech Stack
-This section lists the key technologies used in the project, including the backend, testing, frontend, and database components. 
+### Resumo das camadas
 
-See [Tech Stack](/.doc/tech-stack.md)
+- `DeveloperStore.Domain`: regras de negócio, aggregate `Sale`, entidades, value objects, eventos e exceções de domínio.
+- `DeveloperStore.Application`: comandos, queries, handlers, DTOs e validações de aplicação.
+- `DeveloperStore.ORM`: `DbContext`, mappings e implementação do repositório.
+- `DeveloperStore.IoC`: composição das dependências.
+- `DeveloperStore.Common`: validação, logging e health checks.
+- `DeveloperStore.WebApi`: controllers, middleware, contrato HTTP e bootstrap da API.
 
-## Frameworks
-This section outlines the frameworks and libraries that are leveraged in the project to enhance development productivity and maintainability. 
+## Modelagem de domínio
 
-See [Frameworks](/.doc/frameworks.md)
+O agregado principal é `Sale`.
 
-<!-- 
-## API Structure
-This section includes links to the detailed documentation for the different API resources:
-- [API General](./docs/general-api.md)
-- [Products API](/.doc/products-api.md)
-- [Carts API](/.doc/carts-api.md)
-- [Users API](/.doc/users-api.md)
-- [Auth API](/.doc/auth-api.md)
--->
+Conceitos semânticos importantes foram modelados com tipos dedicados, por exemplo:
 
-## Project Structure
-This section describes the overall structure and organization of the project files and directories. 
+- `SaleId`
+- `SaleItemId`
+- `SaleNumber`
+- `SoldAt`
+- `Money`
+- `ItemQuantity`
+- `DiscountRate`
+- `CustomerReference`
+- `BranchReference`
+- `ProductReference`
 
-See [Project Structure](/.doc/project-structure.md)
+Essa modelagem reduz ambiguidade e concentra invariantes no lugar correto.
+
+## Regras de negócio implementadas
+
+- compras com `1` a `3` unidades idênticas recebem `0%` de desconto
+- compras com `4` a `9` unidades idênticas recebem `10%` de desconto
+- compras com `10` a `20` unidades idênticas recebem `20%` de desconto
+- não é permitido vender mais de `20` unidades do mesmo produto
+- vendas canceladas não podem ser alteradas
+- cancelamento de venda cancela logicamente todos os itens
+- cancelamento de item recalcula o total da venda
+
+## Eventos de domínio implementados
+
+Os eventos são publicados in-process e registrados em log:
+
+- `SaleCreated`
+- `SaleModified`
+- `SaleCancelled`
+- `ItemCancelled`
+
+## Contrato da API
+
+### Endpoints
+
+- `POST /api/sales`
+- `GET /api/sales/{id}`
+- `GET /api/sales`
+- `PUT /api/sales/{id}`
+- `DELETE /api/sales/{id}`
+- `POST /api/sales/{saleId}/items/{itemId}/cancel`
+
+### Paginação
+
+- `_page`: padrão `1`
+- `_size`: padrão `10`
+
+### Ordenação
+
+Campos suportados em `_order`:
+
+- `saleNumber`
+- `soldAt`
+- `customerName`
+- `branchName`
+- `totalAmount`
+- `status`
+- `itemCount`
+
+Exemplo:
+
+```bash
+GET /api/sales?_page=1&_size=10&_order=soldAt desc, saleNumber asc
+```
+
+### Filtros suportados
+
+- `saleNumber`
+- `customer`
+- `branch`
+- `status`
+- `_minSoldAt`
+- `_maxSoldAt`
+
+### Semântica de filtros de texto
+
+- `saleNumber=SALE-123`: match exato
+- `saleNumber=SALE*`: prefixo
+- `customer=*Silva`: sufixo
+- `branch=*Center*`: contains
+
+## Erros da API
+
+A API retorna erros semânticos com lista de detalhes para facilitar tratamento no cliente.
+
+Exemplo:
+
+```json
+{
+  "type": "validation_failed",
+  "error": "Request validation failed",
+  "detail": "One or more request values are invalid.",
+  "status": 422,
+  "traceId": "00-...",
+  "errors": [
+    {
+      "code": "sale_number_required",
+      "field": "SaleNumber",
+      "message": "saleNumber is required"
+    }
+  ]
+}
+```
+
+## Como executar
+
+### Pré-requisitos
+
+- `.NET SDK 10`
+- `Docker`
+- `Docker Compose`
+
+## Passo a passo com Docker
+
+### 1. Suba a infraestrutura e a API
+
+```bash
+docker compose up --build
+```
+
+### 2. Acesse a aplicação
+
+- API: `http://localhost:8080`
+- Swagger: `http://localhost:8080/swagger`
+- Health: `http://localhost:8080/health`
+
+### 3. Observação importante
+
+No ambiente Docker, as migrations são aplicadas no startup porque `Database__ApplyMigrationsOnStartup=true` está configurado no compose.
+
+## Passo a passo sem Docker
+
+### 1. Suba um PostgreSQL local
+
+Você precisa de uma instância acessível localmente.
+
+### 2. Configure a connection string
+
+Exemplo:
+
+```bash
+export ConnectionStrings__DefaultConnection="Host=localhost;Port=5432;Database=developerstore;Username=developerstore_app;Password=developerstore_local_only"
+```
+
+### 3. Escolha se quer aplicar migration automaticamente
+
+Por padrão, a API não aplica migrations automaticamente.
+
+Para habilitar:
+
+```bash
+export Database__ApplyMigrationsOnStartup=true
+```
+
+### 4. Rode a API
+
+```bash
+dotnet run --project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj
+```
+
+## Como aplicar migrations manualmente
+
+```bash
+dotnet tool run dotnet-ef database update \
+  --project src/DeveloperStore.ORM/DeveloperStore.ORM.csproj \
+  --startup-project src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj
+```
+
+## Como testar
+
+### Testes unitários
+
+Validam regras de domínio e handlers isolados.
+
+```bash
+dotnet test tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj --no-restore
+```
+
+### Testes de integração
+
+Validam o repositório e consultas em nível de infraestrutura.
+
+```bash
+dotnet test tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj --no-restore
+```
+
+### Testes funcionais
+
+Validam o contrato HTTP da API.
+
+```bash
+dotnet test tests/DeveloperStore.Functional/DeveloperStore.Functional.csproj --no-restore
+```
+
+### Prova real com PostgreSQL
+
+Sobe um PostgreSQL via Docker, aplica migrations e roda a suíte dedicada ao banco real.
+
+```bash
+./scripts/validate-postgres.sh
+```
+
+### Formatter
+
+```bash
+dotnet format DeveloperStore.slnx --verify-no-changes
+```
+
+## O que os testes comprovam
+
+- regras de desconto
+- limite máximo de `20` unidades por produto
+- cálculo de total por item e total da venda
+- validação semântica com payload de erro estruturado
+- persistência real em PostgreSQL
+- listagem com paginação, ordenação e filtros
+- cancelamento de venda e cancelamento de item
+
+## Exemplo de criação de venda
+
+```json
+{
+  "saleNumber": "SALE-301",
+  "soldAt": "2026-06-23T12:00:00Z",
+  "customerExternalId": "customer-1",
+  "customerName": "Jane Doe",
+  "branchExternalId": "branch-1",
+  "branchName": "Central",
+  "items": [
+    {
+      "productExternalId": "product-1",
+      "productName": "Product 1",
+      "quantity": 4,
+      "unitPrice": 10.0
+    }
+  ]
+}
+```
+
+## Health checks
+
+- `GET /health/live`
+- `GET /health/ready`
+- `GET /health`
+
+## Observações relevantes para a avaliação
+
+- o projeto foi conduzido com foco em `Sales API`
+- o domínio foi priorizado sobre conveniência de ORM
+- há validação semântica em borda e invariantes no núcleo do domínio
+- a solução possui evidência automatizada em memória e em banco real
+- a documentação foi atualizada para refletir o comportamento efetivamente implementado

@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DeveloperStore.Application/DeveloperStore.Application.csproj" />
+    <Project Path="src/DeveloperStore.Common/DeveloperStore.Common.csproj" />
+    <Project Path="src/DeveloperStore.Domain/DeveloperStore.Domain.csproj" />
+    <Project Path="src/DeveloperStore.IoC/DeveloperStore.IoC.csproj" />
+    <Project Path="src/DeveloperStore.ORM/DeveloperStore.ORM.csproj" />
+    <Project Path="src/DeveloperStore.WebApi/DeveloperStore.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DeveloperStore.Functional/DeveloperStore.Functional.csproj" />
+    <Project Path="tests/DeveloperStore.Integration/DeveloperStore.Integration.csproj" />
+    <Project Path="tests/DeveloperStore.Postgres/DeveloperStore.Postgres.csproj" />
+    <Project Path="tests/DeveloperStore.Unit/DeveloperStore.Unit.csproj" />
+  </Folder>
+</Solution>

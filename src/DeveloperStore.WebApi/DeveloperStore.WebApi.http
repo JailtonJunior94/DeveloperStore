@@ -1,0 +1,27 @@
+@DeveloperStore.WebApi_HostAddress = http://localhost:5119
+
+POST {{DeveloperStore.WebApi_HostAddress}}/api/sales
+Content-Type: application/json
+
+{
+  "saleNumber": "SALE-HTTP-001",
+  "soldAt": "2026-06-22T12:00:00Z",
+  "customerExternalId": "customer-1",
+  "customerName": "Jane Doe",
+  "branchExternalId": "branch-1",
+  "branchName": "Central",
+  "items": [
+    {
+      "productExternalId": "product-1",
+      "productName": "Product 1",
+      "quantity": 4,
+      "unitPrice": 10
+    }
+  ]
+}
+
+###
+
+GET {{DeveloperStore.WebApi_HostAddress}}/api/sales?pageNumber=1&pageSize=20
+Accept: application/json
+
