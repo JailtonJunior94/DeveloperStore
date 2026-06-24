@@ -1,0 +1,4 @@
+# Override local para desenvolvimento.
+# Este arquivo é mergeado automaticamente pelo docker compose e pelo Visual Studio.
+# Adicione aqui apenas customizações que não devem ir para o docker-compose.yml base
+# (ex: volumes adicionais, variáveis pessoais, portas extras).
